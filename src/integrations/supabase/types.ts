@@ -14,16 +14,206 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      flats: {
+        Row: {
+          created_at: string
+          flat_number: string
+          id: string
+          other_charges: number
+          prev_meter_reading: number
+          rent: number
+          tenant_id: string | null
+          tenant_mobile: string
+          tenant_name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          flat_number: string
+          id?: string
+          other_charges?: number
+          prev_meter_reading?: number
+          rent?: number
+          tenant_id?: string | null
+          tenant_mobile?: string
+          tenant_name?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          flat_number?: string
+          id?: string
+          other_charges?: number
+          prev_meter_reading?: number
+          rent?: number
+          tenant_id?: string | null
+          tenant_mobile?: string
+          tenant_name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      meter_readings: {
+        Row: {
+          amount_paid: number
+          created_at: string
+          curr_reading: number | null
+          electricity_bill: number
+          flat_id: string
+          id: string
+          month: number
+          opening_balance: number
+          other_charges: number
+          payment_method: string | null
+          payment_status: string
+          payment_timestamp: string | null
+          prev_reading: number
+          rate_per_unit: number
+          rent: number
+          total_due: number
+          units: number
+          updated_at: string
+          year: number
+        }
+        Insert: {
+          amount_paid?: number
+          created_at?: string
+          curr_reading?: number | null
+          electricity_bill?: number
+          flat_id: string
+          id?: string
+          month: number
+          opening_balance?: number
+          other_charges?: number
+          payment_method?: string | null
+          payment_status?: string
+          payment_timestamp?: string | null
+          prev_reading?: number
+          rate_per_unit?: number
+          rent?: number
+          total_due?: number
+          units?: number
+          updated_at?: string
+          year: number
+        }
+        Update: {
+          amount_paid?: number
+          created_at?: string
+          curr_reading?: number | null
+          electricity_bill?: number
+          flat_id?: string
+          id?: string
+          month?: number
+          opening_balance?: number
+          other_charges?: number
+          payment_method?: string | null
+          payment_status?: string
+          payment_timestamp?: string | null
+          prev_reading?: number
+          rate_per_unit?: number
+          rent?: number
+          total_due?: number
+          units?: number
+          updated_at?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meter_readings_flat_id_fkey"
+            columns: ["flat_id"]
+            isOneToOne: false
+            referencedRelation: "flats"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          id: string
+          mobile: string
+          name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          mobile?: string
+          name?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          mobile?: string
+          name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      settings: {
+        Row: {
+          electricity_rate_per_unit: number
+          id: number
+          owner_name: string
+          owner_upi_id: string
+          updated_at: string
+        }
+        Insert: {
+          electricity_rate_per_unit?: number
+          id?: number
+          owner_name?: string
+          owner_upi_id?: string
+          updated_at?: string
+        }
+        Update: {
+          electricity_rate_per_unit?: number
+          id?: number
+          owner_name?: string
+          owner_upi_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "owner" | "tenant"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +340,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["owner", "tenant"],
+    },
   },
 } as const
