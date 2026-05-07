@@ -9,7 +9,7 @@ import { mobileToEmail, normalizeMobile } from "@/lib/mobile";
 import { useAuth } from "@/lib/auth-context";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
-import { seedOwner } from "@/server/admin.functions";
+import { seedOwner } from "@/lib/admin.functions";
 import { Building2, Loader2 } from "lucide-react";
 
 export const Route = createFileRoute("/login")({

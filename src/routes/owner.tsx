@@ -13,7 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Building2, LogOut, Plus, Settings as SettingsIcon, Pencil, Trash2, IndianRupee, History, CheckCircle2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
-import { createTenant, deleteTenant } from "@/server/admin.functions";
+import { createTenant, deleteTenant } from "@/lib/admin.functions";
 import { currentMonthYear, formatINR, monthLabel, statusColor, statusLabel, type PaymentStatus } from "@/lib/billing";
 
 export const Route = createFileRoute("/owner")({
