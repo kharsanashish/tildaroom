@@ -5,11 +5,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
-import { mobileToEmail, normalizeMobile } from "@/lib/mobile";
+import { identifierToEmail } from "@/lib/identity";
 import { useAuth } from "@/lib/auth-context";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
-import { seedOwner } from "@/lib/admin.functions";
+import { ownerExists } from "@/lib/admin.functions";
 import { Building2, Loader2 } from "lucide-react";
 
 export const Route = createFileRoute("/login")({
@@ -17,17 +17,26 @@ export const Route = createFileRoute("/login")({
 });
 
 function Login() {
-  const [mobile, setMobile] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [checkingOwner, setCheckingOwner] = useState(true);
   const navigate = useNavigate();
   const { user, role, loading } = useAuth();
-  const seed = useServerFn(seedOwner);
+  const checkOwner = useServerFn(ownerExists);
 
-  // Try to seed owner once on first visit (idempotent on the server).
+  // If no owner is configured yet, send user to /setup.
   useEffect(() => {
-    seed().catch(() => {});
-  }, [seed]);
+    let cancelled = false;
+    checkOwner()
+      .then((r) => {
+        if (cancelled) return;
+        if (!r.exists) navigate({ to: "/setup" });
+        else setCheckingOwner(false);
+      })
+      .catch(() => setCheckingOwner(false));
+    return () => { cancelled = true; };
+  }, [checkOwner, navigate]);
 
   useEffect(() => {
     if (loading) return;
@@ -37,17 +46,23 @@ function Login() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const m = normalizeMobile(mobile);
-    if (m.length < 10) return toast.error("Enter a valid mobile number");
+    if (!identifier.trim()) return toast.error("Enter your username or email");
     if (password.length < 4) return toast.error("Password too short");
     setSubmitting(true);
-    const { error } = await supabase.auth.signInWithPassword({
-      email: mobileToEmail(m),
-      password,
-    });
+    const email = identifierToEmail(identifier);
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
     setSubmitting(false);
-    if (error) toast.error("Invalid mobile or password");
+    if (error) toast.error("Invalid credentials");
+    // role-based redirect happens in the useEffect above once auth state updates
   };
+
+  if (checkingOwner) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background px-4 py-10"
@@ -65,15 +80,15 @@ function Login() {
         <Card className="p-6 shadow-lg" style={{ boxShadow: "var(--shadow-elevated)" }}>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <Label htmlFor="mobile">मोबाइल नंबर / Mobile Number</Label>
+              <Label htmlFor="identifier">यूज़रनेम या ईमेल / Username or Email</Label>
               <Input
-                id="mobile"
-                type="tel"
-                inputMode="numeric"
-                placeholder="9876543210"
-                value={mobile}
-                onChange={(e) => setMobile(e.target.value)}
+                id="identifier"
+                type="text"
+                placeholder="owner@example.com or tenant_username"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
                 autoComplete="username"
+                autoCapitalize="none"
                 className="mt-1.5 text-base"
               />
             </div>
@@ -93,7 +108,7 @@ function Login() {
             </Button>
           </form>
           <p className="text-xs text-muted-foreground mt-4 text-center">
-            Owner accounts are pre-configured. Tenants get credentials from the owner.
+            Owners log in with their email. Tenants log in with the username given by the owner.
           </p>
         </Card>
       </div>

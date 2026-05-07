@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TenantRouteImport } from './routes/tenant'
+import { Route as SetupRouteImport } from './routes/setup'
 import { Route as OwnerRouteImport } from './routes/owner'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as IndexRouteImport } from './routes/index'
@@ -17,6 +18,11 @@ import { Route as IndexRouteImport } from './routes/index'
 const TenantRoute = TenantRouteImport.update({
   id: '/tenant',
   path: '/tenant',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SetupRoute = SetupRouteImport.update({
+  id: '/setup',
+  path: '/setup',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OwnerRoute = OwnerRouteImport.update({
@@ -39,12 +45,14 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/owner': typeof OwnerRoute
+  '/setup': typeof SetupRoute
   '/tenant': typeof TenantRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/owner': typeof OwnerRoute
+  '/setup': typeof SetupRoute
   '/tenant': typeof TenantRoute
 }
 export interface FileRoutesById {
@@ -52,20 +60,22 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/owner': typeof OwnerRoute
+  '/setup': typeof SetupRoute
   '/tenant': typeof TenantRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/owner' | '/tenant'
+  fullPaths: '/' | '/login' | '/owner' | '/setup' | '/tenant'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login' | '/owner' | '/tenant'
-  id: '__root__' | '/' | '/login' | '/owner' | '/tenant'
+  to: '/' | '/login' | '/owner' | '/setup' | '/tenant'
+  id: '__root__' | '/' | '/login' | '/owner' | '/setup' | '/tenant'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   LoginRoute: typeof LoginRoute
   OwnerRoute: typeof OwnerRoute
+  SetupRoute: typeof SetupRoute
   TenantRoute: typeof TenantRoute
 }
 
@@ -76,6 +86,13 @@ declare module '@tanstack/react-router' {
       path: '/tenant'
       fullPath: '/tenant'
       preLoaderRoute: typeof TenantRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/setup': {
+      id: '/setup'
+      path: '/setup'
+      fullPath: '/setup'
+      preLoaderRoute: typeof SetupRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/owner': {
@@ -106,18 +123,9 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LoginRoute: LoginRoute,
   OwnerRoute: OwnerRoute,
+  SetupRoute: SetupRoute,
   TenantRoute: TenantRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

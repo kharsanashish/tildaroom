@@ -272,7 +272,7 @@ function FlatDialog({ flat, onSaved }: { flat?: Flat; onSaved: () => void }) {
   const [open, setOpen] = useState(false);
   const [flatNumber, setFlatNumber] = useState(flat?.flat_number ?? "");
   const [tenantName, setTenantName] = useState(flat?.tenant_name ?? "");
-  const [tenantMobile, setTenantMobile] = useState(flat?.tenant_mobile ?? "");
+  const [tenantUsername, setTenantUsername] = useState(flat?.tenant_mobile ?? "");
   const [tenantPassword, setTenantPassword] = useState("");
   const [rent, setRent] = useState(String(flat?.rent ?? ""));
   const [other, setOther] = useState(String(flat?.other_charges ?? ""));
@@ -291,7 +291,7 @@ function FlatDialog({ flat, onSaved }: { flat?: Flat; onSaved: () => void }) {
         const { error } = await supabase.from("flats").update({
           flat_number: flatNumber,
           tenant_name: tenantName,
-          tenant_mobile: tenantMobile.replace(/\D/g, ""),
+          tenant_mobile: tenantUsername.trim().toLowerCase(),
           rent: Number(rent) || 0,
           other_charges: Number(other) || 0,
           prev_meter_reading: Number(prev) || 0,
@@ -301,7 +301,7 @@ function FlatDialog({ flat, onSaved }: { flat?: Flat; onSaved: () => void }) {
         const { data, error } = await supabase.from("flats").insert({
           flat_number: flatNumber,
           tenant_name: tenantName,
-          tenant_mobile: tenantMobile.replace(/\D/g, ""),
+          tenant_mobile: tenantUsername.trim().toLowerCase(),
           rent: Number(rent) || 0,
           other_charges: Number(other) || 0,
           prev_meter_reading: Number(prev) || 0,
@@ -310,12 +310,12 @@ function FlatDialog({ flat, onSaved }: { flat?: Flat; onSaved: () => void }) {
         flatId = data.id;
       }
 
-      // Create / update tenant login if mobile + password provided
-      if (flatId && tenantMobile && tenantPassword) {
+      // Create / update tenant login if username + password provided
+      if (flatId && tenantUsername && tenantPassword) {
         const r = await createTenantFn({
           data: {
             flatId,
-            mobile: tenantMobile,
+            username: tenantUsername,
             password: tenantPassword,
             name: tenantName || `Flat ${flatNumber}`,
           },
@@ -368,8 +368,8 @@ function FlatDialog({ flat, onSaved }: { flat?: Flat; onSaved: () => void }) {
               <Input value={tenantName} onChange={(e) => setTenantName(e.target.value)} />
             </div>
             <div>
-              <Label>Tenant Mobile</Label>
-              <Input value={tenantMobile} onChange={(e) => setTenantMobile(e.target.value)} inputMode="numeric" />
+              <Label>Tenant Username</Label>
+              <Input value={tenantUsername} onChange={(e) => setTenantUsername(e.target.value)} placeholder="e.g. raj_a101" autoCapitalize="none" />
             </div>
           </div>
           <div>
