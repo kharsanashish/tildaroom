@@ -3,7 +3,7 @@ import { z } from "zod";
 import { createClient } from "@supabase/supabase-js";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
-const MOBILE_DOMAIN = "flatrent.local";
+const TENANT_DOMAIN = "flatrent.local";
 
 function admin() {
   return createClient(
@@ -13,51 +13,66 @@ function admin() {
   );
 }
 
-function normalizeMobile(input: string) {
-  return input.replace(/\D/g, "");
+function normalizeUsername(input: string) {
+  return input.trim().toLowerCase().replace(/[^a-z0-9._-]/g, "");
 }
 
-/**
- * Idempotent owner seeding from server secrets. Anyone can call this — but it
- * only ever creates / updates the single owner account whose mobile is set in
- * OWNER_MOBILE. Used once at first launch.
- */
-export const seedOwner = createServerFn({ method: "POST" }).handler(async () => {
-  const mobile = normalizeMobile(process.env.OWNER_MOBILE ?? "");
-  const password = process.env.OWNER_PASSWORD ?? "";
-  const name = process.env.OWNER_NAME ?? "Owner";
-  if (!mobile || !password) {
-    return { ok: false, error: "Owner credentials not configured" };
-  }
-  const email = `${mobile}@${MOBILE_DOMAIN}`;
+/** Public check: does an owner account exist yet? Used to gate /setup. */
+export const ownerExists = createServerFn({ method: "GET" }).handler(async () => {
   const sb = admin();
-
-  // Check if user already exists by listing
-  const { data: list } = await sb.auth.admin.listUsers({ page: 1, perPage: 200 });
-  let userId = list?.users.find((u) => u.email === email)?.id;
-
-  if (!userId) {
-    const { data, error } = await sb.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-      user_metadata: { name, role: "owner" },
-    });
-    if (error) return { ok: false, error: error.message };
-    userId = data.user!.id;
-  }
-
-  // Upsert profile + role + settings owner_name
-  await sb.from("profiles").upsert({ user_id: userId, name, mobile }, { onConflict: "user_id" });
-  await sb.from("user_roles").upsert({ user_id: userId, role: "owner" }, { onConflict: "user_id,role" });
-  await sb.from("settings").update({ owner_name: name }).eq("id", 1);
-
-  return { ok: true };
+  const { count, error } = await sb
+    .from("user_roles")
+    .select("user_id", { count: "exact", head: true })
+    .eq("role", "owner");
+  if (error) return { exists: false, error: error.message };
+  return { exists: (count ?? 0) > 0 };
 });
+
+const createOwnerSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(6).max(64),
+  name: z.string().min(1).max(80),
+});
+
+/** First-launch owner creation. Refuses once any owner exists. */
+export const createOwner = createServerFn({ method: "POST" })
+  .inputValidator((d) => createOwnerSchema.parse(d))
+  .handler(async ({ data }) => {
+    const sb = admin();
+    const { count } = await sb
+      .from("user_roles")
+      .select("user_id", { count: "exact", head: true })
+      .eq("role", "owner");
+    if ((count ?? 0) > 0) {
+      return { ok: false, error: "Owner already configured" };
+    }
+
+    const email = data.email.toLowerCase();
+    const { data: created, error } = await sb.auth.admin.createUser({
+      email,
+      password: data.password,
+      email_confirm: true,
+      user_metadata: { name: data.name, role: "owner" },
+    });
+    if (error || !created.user) return { ok: false, error: error?.message ?? "Failed" };
+
+    const userId = created.user.id;
+    await sb.from("profiles").upsert(
+      { user_id: userId, name: data.name, mobile: email },
+      { onConflict: "user_id" },
+    );
+    await sb.from("user_roles").upsert(
+      { user_id: userId, role: "owner" },
+      { onConflict: "user_id,role" },
+    );
+    await sb.from("settings").update({ owner_name: data.name }).eq("id", 1);
+
+    return { ok: true };
+  });
 
 const createTenantSchema = z.object({
   flatId: z.string().uuid(),
-  mobile: z.string().min(10).max(15),
+  username: z.string().min(3).max(32),
   password: z.string().min(4).max(64),
   name: z.string().min(1).max(80),
 });
@@ -66,7 +81,6 @@ export const createTenant = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => createTenantSchema.parse(d))
   .handler(async ({ data, context }) => {
-    // verify caller is owner
     const { data: roles } = await context.supabase
       .from("user_roles")
       .select("role")
@@ -76,8 +90,9 @@ export const createTenant = createServerFn({ method: "POST" })
     if (!roles) throw new Error("Only the owner can create tenants");
 
     const sb = admin();
-    const mobile = normalizeMobile(data.mobile);
-    const email = `${mobile}@${MOBILE_DOMAIN}`;
+    const username = normalizeUsername(data.username);
+    if (username.length < 3) return { ok: false, error: "Invalid username" };
+    const email = `${username}@${TENANT_DOMAIN}`;
 
     // Find or create user
     const { data: list } = await sb.auth.admin.listUsers({ page: 1, perPage: 1000 });
@@ -93,12 +108,11 @@ export const createTenant = createServerFn({ method: "POST" })
       if (error) return { ok: false, error: error.message };
       userId = created.user!.id;
     } else {
-      // update password if user already existed
       await sb.auth.admin.updateUserById(userId, { password: data.password });
     }
 
     await sb.from("profiles").upsert(
-      { user_id: userId, name: data.name, mobile },
+      { user_id: userId, name: data.name, mobile: username },
       { onConflict: "user_id" },
     );
     await sb.from("user_roles").upsert(
@@ -106,10 +120,9 @@ export const createTenant = createServerFn({ method: "POST" })
       { onConflict: "user_id,role" },
     );
 
-    // Link to flat
     const { error: flatErr } = await sb
       .from("flats")
-      .update({ tenant_id: userId, tenant_name: data.name, tenant_mobile: mobile })
+      .update({ tenant_id: userId, tenant_name: data.name, tenant_mobile: username })
       .eq("id", data.flatId);
     if (flatErr) return { ok: false, error: flatErr.message };
 
@@ -125,7 +138,6 @@ export const deleteTenant = createServerFn({ method: "POST" })
     if (!roles) throw new Error("Only the owner can delete tenants");
 
     const sb = admin();
-    // Unlink from flats first (ON DELETE SET NULL handles, but be explicit)
     await sb.from("flats").update({ tenant_id: null }).eq("tenant_id", data.tenantId);
     const { error } = await sb.auth.admin.deleteUser(data.tenantId);
     if (error) return { ok: false, error: error.message };
