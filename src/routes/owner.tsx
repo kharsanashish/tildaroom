@@ -10,11 +10,14 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Building2, LogOut, Plus, Settings as SettingsIcon, Pencil, Trash2, IndianRupee, History, CheckCircle2, Loader2 } from "lucide-react";
+import { Building2, LogOut, Plus, Settings as SettingsIcon, Pencil, Trash2, IndianRupee, History, CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
 import { createTenant, deleteTenant } from "@/lib/admin.functions";
 import { currentMonthYear, formatINR, monthLabel, statusColor, statusLabel, type PaymentStatus } from "@/lib/billing";
+import { RatePrompt } from "@/components/rate-prompt";
+import { JanuaryReview } from "@/components/january-review";
+import { EditReadingDialog } from "@/components/edit-reading-dialog";
 
 export const Route = createFileRoute("/owner")({
   component: () => (
