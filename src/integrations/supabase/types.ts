@@ -14,11 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      electricity_rates: {
+        Row: {
+          created_at: string
+          id: string
+          month: number
+          rate_per_unit: number
+          year: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          month: number
+          rate_per_unit: number
+          year: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          month?: number
+          rate_per_unit?: number
+          year?: number
+        }
+        Relationships: []
+      }
       flats: {
         Row: {
           created_at: string
           flat_number: string
           id: string
+          last_reviewed_year: number | null
           other_charges: number
           prev_meter_reading: number
           rent: number
@@ -31,6 +56,7 @@ export type Database = {
           created_at?: string
           flat_number: string
           id?: string
+          last_reviewed_year?: number | null
           other_charges?: number
           prev_meter_reading?: number
           rent?: number
@@ -43,6 +69,7 @@ export type Database = {
           created_at?: string
           flat_number?: string
           id?: string
+          last_reviewed_year?: number | null
           other_charges?: number
           prev_meter_reading?: number
           rent?: number
@@ -158,6 +185,7 @@ export type Database = {
         Row: {
           electricity_rate_per_unit: number
           id: number
+          owner_mobile: string
           owner_name: string
           owner_upi_id: string
           updated_at: string
@@ -165,6 +193,7 @@ export type Database = {
         Insert: {
           electricity_rate_per_unit?: number
           id?: number
+          owner_mobile?: string
           owner_name?: string
           owner_upi_id?: string
           updated_at?: string
@@ -172,6 +201,7 @@ export type Database = {
         Update: {
           electricity_rate_per_unit?: number
           id?: number
+          owner_mobile?: string
           owner_name?: string
           owner_upi_id?: string
           updated_at?: string
