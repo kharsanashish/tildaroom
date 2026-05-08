@@ -142,8 +142,16 @@ function OwnerDashboard() {
         </div>
 
         <Tabs defaultValue="flats">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="flats">Flats</TabsTrigger>
+            <TabsTrigger value="approvals">
+              Approvals
+              {readings.filter((r) => r.payment_status === "pending_approval").length > 0 && (
+                <Badge className="ml-2 bg-warning text-warning-foreground h-5">
+                  {readings.filter((r) => r.payment_status === "pending_approval").length}
+                </Badge>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="history">History</TabsTrigger>
           </TabsList>
 
@@ -170,11 +178,18 @@ function OwnerDashboard() {
             )}
           </TabsContent>
 
+          <TabsContent value="approvals" className="mt-4">
+            <ApprovalsList flats={flats} readings={readings} onChange={refresh} />
+          </TabsContent>
+
           <TabsContent value="history" className="mt-4">
-            <HistoryView flats={flats} readings={readings} />
+            <HistoryView flats={flats} readings={readings} onChange={refresh} />
           </TabsContent>
         </Tabs>
       </main>
+
+      {settings && <RatePrompt defaultRate={settings.electricity_rate_per_unit} />}
+      <JanuaryReview onDone={refresh} />
     </div>
   );
 }
