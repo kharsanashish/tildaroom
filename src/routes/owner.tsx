@@ -431,6 +431,7 @@ function SettingsDialog({ settings, onSaved }: { settings: Settings; onSaved: ()
   const [rate, setRate] = useState(String(settings?.electricity_rate_per_unit ?? "8"));
   const [upi, setUpi] = useState(settings?.owner_upi_id ?? "");
   const [name, setName] = useState(settings?.owner_name ?? "");
+  const [mobile, setMobile] = useState(settings?.owner_mobile ?? "");
   const [saving, setSaving] = useState(false);
 
   const save = async () => {
@@ -439,6 +440,7 @@ function SettingsDialog({ settings, onSaved }: { settings: Settings; onSaved: ()
       electricity_rate_per_unit: Number(rate) || 0,
       owner_upi_id: upi.trim(),
       owner_name: name.trim(),
+      owner_mobile: mobile.replace(/\D/g, ""),
     }).eq("id", 1);
     setSaving(false);
     if (error) toast.error(error.message);
@@ -458,11 +460,15 @@ function SettingsDialog({ settings, onSaved }: { settings: Settings; onSaved: ()
             <Input value={name} onChange={(e) => setName(e.target.value)} />
           </div>
           <div>
+            <Label>WhatsApp Mobile (10 digits, no +91)</Label>
+            <Input value={mobile} onChange={(e) => setMobile(e.target.value)} placeholder="9876543210" inputMode="numeric" />
+          </div>
+          <div>
             <Label>PhonePe UPI ID</Label>
             <Input value={upi} onChange={(e) => setUpi(e.target.value)} placeholder="name@ybl" />
           </div>
           <div>
-            <Label>Electricity Rate (₹ / unit)</Label>
+            <Label>Default Electricity Rate (₹ / unit)</Label>
             <Input value={rate} onChange={(e) => setRate(e.target.value)} type="number" inputMode="decimal" />
           </div>
         </div>
@@ -477,8 +483,61 @@ function SettingsDialog({ settings, onSaved }: { settings: Settings; onSaved: ()
   );
 }
 
-function HistoryView({ flats, readings }: { flats: Flat[]; readings: Reading[] }) {
+function ApprovalsList({ flats, readings, onChange }: { flats: Flat[]; readings: Reading[]; onChange: () => void }) {
+  const pending = readings.filter((r) => r.payment_status === "pending_approval")
+    .sort((a, b) => b.year - a.year || b.month - a.month);
+
+  const approve = async (r: Reading) => {
+    const { error } = await supabase.from("meter_readings").update({
+      payment_status: "paid",
+      payment_timestamp: new Date().toISOString(),
+    }).eq("id", r.id);
+    if (error) toast.error(error.message);
+    else { toast.success("Approved"); onChange(); }
+  };
+  const reject = async (r: Reading) => {
+    const { error } = await supabase.from("meter_readings").update({
+      payment_status: "rejected",
+      amount_paid: 0,
+    }).eq("id", r.id);
+    if (error) toast.error(error.message);
+    else { toast.success("Rejected"); onChange(); }
+  };
+
+  if (pending.length === 0) {
+    return <Card className="p-6 text-center text-muted-foreground">No pending approvals</Card>;
+  }
+  return (
+    <div className="space-y-2">
+      {pending.map((r) => {
+        const flat = flats.find((f) => f.id === r.flat_id);
+        return (
+          <Card key={r.id} className="p-4">
+            <div className="flex justify-between items-start gap-3">
+              <div className="min-w-0">
+                <div className="font-medium text-sm">Flat {flat?.flat_number} • {flat?.tenant_name || "—"}</div>
+                <div className="text-xs text-muted-foreground">{monthLabel(r.month, r.year)}</div>
+                <div className="text-base font-semibold mt-1">{formatINR(Number(r.total_due))}</div>
+              </div>
+              <div className="flex gap-2 flex-shrink-0">
+                <Button size="sm" variant="outline" onClick={() => reject(r)}>
+                  <XCircle className="h-4 w-4 mr-1" /> Reject
+                </Button>
+                <Button size="sm" onClick={() => approve(r)} style={{ background: "var(--success)", color: "var(--success-foreground)" }}>
+                  <CheckCircle2 className="h-4 w-4 mr-1" /> Approve
+                </Button>
+              </div>
+            </div>
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
+
+function HistoryView({ flats, readings, onChange }: { flats: Flat[]; readings: Reading[]; onChange: () => void }) {
   const [flatId, setFlatId] = useState<string | "all">("all");
+  const [editing, setEditing] = useState<Reading | null>(null);
   const filtered = readings
     .filter((r) => flatId === "all" || r.flat_id === flatId)
     .sort((a, b) => b.year - a.year || b.month - a.month);
@@ -500,23 +559,34 @@ function HistoryView({ flats, readings }: { flats: Flat[]; readings: Reading[] }
           {filtered.map((r) => {
             const flat = flats.find((f) => f.id === r.flat_id);
             return (
-              <Card key={r.id} className="p-4 flex items-center justify-between">
-                <div>
+              <Card key={r.id} className="p-4 flex items-center justify-between gap-3">
+                <div className="min-w-0">
                   <div className="font-medium text-sm">Flat {flat?.flat_number} • {monthLabel(r.month, r.year)}</div>
                   <div className="text-xs text-muted-foreground mt-0.5">
                     {Number(r.units).toFixed(0)} units • Bill {formatINR(Number(r.electricity_bill))}
                   </div>
                 </div>
-                <div className="text-right">
+                <div className="text-right flex-shrink-0">
                   <Badge className={statusColor(r.payment_status)}>{statusLabel(r.payment_status)}</Badge>
                   <div className="text-sm font-semibold mt-1 flex items-center justify-end">
                     <IndianRupee className="h-3 w-3" />{Number(r.amount_paid).toFixed(0)} / {Number(r.total_due).toFixed(0)}
                   </div>
+                  <Button size="sm" variant="outline" className="mt-2 h-7" onClick={() => setEditing(r)}>
+                    <Pencil className="h-3 w-3 mr-1" /> Edit
+                  </Button>
                 </div>
               </Card>
             );
           })}
         </div>
+      )}
+      {editing && (
+        <EditReadingDialog
+          reading={editing}
+          open={!!editing}
+          onOpenChange={(v) => !v && setEditing(null)}
+          onSaved={onChange}
+        />
       )}
     </div>
   );
