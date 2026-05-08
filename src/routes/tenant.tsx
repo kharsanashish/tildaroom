@@ -8,9 +8,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Building2, LogOut, Loader2, Zap, Receipt, Smartphone, CheckCircle2, XCircle } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Building2, LogOut, Loader2, Zap, Receipt, Smartphone, CheckCircle2, XCircle, FileDown, History } from "lucide-react";
 import { toast } from "sonner";
 import { buildUpiLink, currentMonthYear, formatINR, monthLabel, statusColor, statusLabel, type PaymentStatus } from "@/lib/billing";
+import { getRateFor } from "@/lib/rates";
+import { exportReadingPdf } from "@/lib/pdf";
 
 export const Route = createFileRoute("/tenant")({
   component: () => (
@@ -22,20 +25,25 @@ export const Route = createFileRoute("/tenant")({
 
 interface Flat {
   id: string; flat_number: string; rent: number; other_charges: number; prev_meter_reading: number;
+  tenant_name: string;
 }
 interface Reading {
   id: string; flat_id: string; month: number; year: number;
   prev_reading: number; curr_reading: number | null; units: number;
   rate_per_unit: number; electricity_bill: number; rent: number; other_charges: number;
   opening_balance: number; total_due: number; amount_paid: number; payment_status: PaymentStatus;
+  payment_method: string | null; payment_timestamp: string | null;
 }
-interface Settings { electricity_rate_per_unit: number; owner_upi_id: string; owner_name: string; }
+interface Settings {
+  electricity_rate_per_unit: number; owner_upi_id: string; owner_name: string; owner_mobile: string;
+}
 
 function TenantDashboard() {
   const { user, signOut } = useAuth();
   const [flat, setFlat] = useState<Flat | null>(null);
   const [readings, setReadings] = useState<Reading[]>([]);
   const [settings, setSettings] = useState<Settings | null>(null);
+  const [monthRate, setMonthRate] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [currInput, setCurrInput] = useState("");
   const [saving, setSaving] = useState(false);
@@ -49,6 +57,8 @@ function TenantDashboard() {
     setFlat(f as Flat | null);
     const { data: s } = await supabase.from("settings").select("*").eq("id", 1).single();
     setSettings(s as Settings);
+    const fallback = Number((s as Settings)?.electricity_rate_per_unit ?? 0);
+    setMonthRate(await getRateFor(month, year, fallback));
     if (f) {
       const { data: r } = await supabase.from("meter_readings").select("*").eq("flat_id", (f as Flat).id);
       setReadings((r as Reading[]) ?? []);
@@ -63,18 +73,15 @@ function TenantDashboard() {
     [readings, month, year],
   );
 
-  // Compute opening balance from previous month
   const openingBalance = useMemo(() => {
     if (!readings.length) return 0;
     const prev = [...readings]
       .filter((r) => !(r.month === month && r.year === year))
       .sort((a, b) => b.year - a.year || b.month - a.month)[0];
     if (!prev) return 0;
-    // negative = unpaid dues (balance due), positive = advance
     return Number(prev.amount_paid) - Number(prev.total_due);
   }, [readings, month, year]);
 
-  // Previous reading: from last month's curr_reading or flat's prev_meter_reading
   const prevReading = useMemo(() => {
     if (current) return Number(current.prev_reading);
     const prev = [...readings]
@@ -83,13 +90,13 @@ function TenantDashboard() {
     return prev ? Number(prev.curr_reading) : Number(flat?.prev_meter_reading ?? 0);
   }, [current, readings, month, year, flat]);
 
-  const rate = Number(settings?.electricity_rate_per_unit ?? 0);
+  const rate = monthRate;
   const currNum = current ? Number(current.curr_reading ?? 0) : Number(currInput || 0);
   const units = Math.max(0, currNum - prevReading);
   const electricity = units * rate;
   const rent = Number(flat?.rent ?? 0);
   const other = Number(flat?.other_charges ?? 0);
-  const totalDue = rent + electricity + other - openingBalance; // openingBalance>0 = advance reduces, <0 = adds
+  const totalDue = rent + electricity + other - openingBalance;
 
   const saveReading = async () => {
     if (!flat) return;
@@ -132,17 +139,31 @@ function TenantDashboard() {
   };
 
   const confirmPayment = async (success: boolean) => {
-    if (!current) return;
+    if (!current || !flat) return;
     setConfirmOpen(false);
     if (!success) return toast.info("Payment kept as pending");
+
+    const amount = Number(current.total_due) - Number(current.amount_paid);
     const { error } = await supabase.from("meter_readings").update({
       amount_paid: current.total_due,
-      payment_status: "paid",
+      payment_status: "pending_approval",
       payment_method: "upi",
       payment_timestamp: new Date().toISOString(),
     }).eq("id", current.id);
-    if (error) toast.error(error.message);
-    else { toast.success("Payment confirmed!"); refresh(); }
+    if (error) return toast.error(error.message);
+
+    toast.success("Marked pending approval. Send screenshot to owner.");
+    refresh();
+
+    // Open WhatsApp
+    const mobile = (settings?.owner_mobile || "").replace(/\D/g, "");
+    if (mobile) {
+      const msg = `Payment done for Flat ${flat.flat_number} - ${monthLabel(month, year)} ₹${amount.toFixed(0)}. Screenshot attached.`;
+      const url = `https://wa.me/91${mobile}?text=${encodeURIComponent(msg)}`;
+      window.open(url, "_blank");
+    } else {
+      toast.warning("Owner mobile not set in settings");
+    }
   };
 
   if (loading) {
@@ -161,6 +182,7 @@ function TenantDashboard() {
   }
 
   const status: PaymentStatus = current?.payment_status ?? "pending";
+  const canPay = status === "pending" || status === "rejected" || status === "partial";
 
   return (
     <div className="min-h-screen bg-background pb-20">
@@ -180,109 +202,103 @@ function TenantDashboard() {
       </header>
 
       <main className="max-w-2xl mx-auto px-4 pt-6 space-y-4">
-        {/* Status */}
-        <Card className="p-5 text-center" style={{ background: status === "paid" ? "oklch(0.95 0.06 150 / 0.6)" : "var(--gradient-primary)", color: status === "paid" ? "var(--success-foreground)" : "var(--primary-foreground)" }}>
-          <div className="text-sm opacity-80">कुल देय / Total Payable</div>
-          <div className="text-4xl font-bold mt-1">{formatINR(current ? Number(current.total_due) - Number(current.amount_paid) : totalDue)}</div>
-          <Badge className={`mt-2 ${statusColor(status)}`}>{statusLabel(status)}</Badge>
-        </Card>
+        <Tabs defaultValue="current">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="current">Current</TabsTrigger>
+            <TabsTrigger value="history"><History className="h-3.5 w-3.5 mr-1" />History</TabsTrigger>
+          </TabsList>
 
-        {/* Reading entry */}
-        <Card className="p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <Zap className="h-5 w-5 text-warning" />
-            <h3 className="font-semibold">बिजली रीडिंग / Meter Reading</h3>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label className="text-xs">Previous</Label>
-              <Input value={prevReading} readOnly className="bg-muted" />
-            </div>
-            <div>
-              <Label className="text-xs">Current {current && "(saved)"}</Label>
-              <Input
-                value={current ? String(current.curr_reading) : currInput}
-                onChange={(e) => setCurrInput(e.target.value)}
-                type="number"
-                inputMode="numeric"
-                disabled={status === "paid"}
-                placeholder="Enter reading"
-              />
-            </div>
-          </div>
-          {status !== "paid" && (
-            <Button onClick={saveReading} disabled={saving || !currInput} className="w-full mt-3">
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : current ? "Update Reading" : "Save Reading"}
-            </Button>
-          )}
-        </Card>
+          <TabsContent value="current" className="space-y-4 mt-4">
+            <Card className="p-5 text-center" style={{ background: status === "paid" ? "oklch(0.95 0.06 150 / 0.6)" : "var(--gradient-primary)", color: status === "paid" ? "var(--success-foreground)" : "var(--primary-foreground)" }}>
+              <div className="text-sm opacity-80">कुल देय / Total Payable</div>
+              <div className="text-4xl font-bold mt-1">{formatINR(current ? Number(current.total_due) - Number(current.amount_paid) : totalDue)}</div>
+              <Badge className={`mt-2 ${statusColor(status)}`}>{statusLabel(status)}</Badge>
+              {status === "rejected" && (
+                <div className="text-xs mt-2 opacity-90">Owner rejected — please repay.</div>
+              )}
+              {status === "pending_approval" && (
+                <div className="text-xs mt-2 opacity-90">Awaiting owner approval.</div>
+              )}
+            </Card>
 
-        {/* Bill breakdown */}
-        <Card className="p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <Receipt className="h-5 w-5 text-primary" />
-            <h3 className="font-semibold">बिल विवरण / Bill Breakdown</h3>
-          </div>
-          <div className="space-y-2 text-sm">
-            <Row label="Units consumed" value={`${units.toFixed(0)} × ₹${rate}`} />
-            <Row label="बिजली बिल / Electricity" value={formatINR(electricity)} />
-            <Row label="किराया / Rent" value={formatINR(rent)} />
-            <Row label="अन्य / Other charges" value={formatINR(other)} />
-            {openingBalance !== 0 && (
-              <Row
-                label={openingBalance > 0 ? "Advance (last month)" : "Balance due (last month)"}
-                value={`${openingBalance > 0 ? "−" : "+"} ${formatINR(Math.abs(openingBalance))}`}
-                className={openingBalance > 0 ? "text-success" : "text-destructive"}
-              />
+            <Card className="p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Zap className="h-5 w-5 text-warning" />
+                <h3 className="font-semibold">बिजली रीडिंग / Meter Reading</h3>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs">Previous</Label>
+                  <Input value={prevReading} readOnly className="bg-muted" />
+                </div>
+                <div>
+                  <Label className="text-xs">Current {current && "(saved)"}</Label>
+                  <Input
+                    value={current ? String(current.curr_reading) : currInput}
+                    onChange={(e) => setCurrInput(e.target.value)}
+                    type="number"
+                    inputMode="numeric"
+                    disabled={status === "paid" || status === "pending_approval"}
+                    placeholder="Enter reading"
+                  />
+                </div>
+              </div>
+              {(status !== "paid" && status !== "pending_approval") && (
+                <Button onClick={saveReading} disabled={saving || !currInput} className="w-full mt-3">
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : current ? "Update Reading" : "Save Reading"}
+                </Button>
+              )}
+            </Card>
+
+            <Card className="p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Receipt className="h-5 w-5 text-primary" />
+                <h3 className="font-semibold">बिल विवरण / Bill Breakdown</h3>
+              </div>
+              <div className="space-y-2 text-sm">
+                <Row label="Units consumed" value={`${units.toFixed(0)} × ₹${rate}`} />
+                <Row label="बिजली बिल / Electricity" value={formatINR(electricity)} />
+                <Row label="किराया / Rent" value={formatINR(rent)} />
+                <Row label="अन्य / Other charges" value={formatINR(other)} />
+                {openingBalance !== 0 && (
+                  <Row
+                    label={openingBalance > 0 ? "Advance (last month)" : "Balance due (last month)"}
+                    value={`${openingBalance > 0 ? "−" : "+"} ${formatINR(Math.abs(openingBalance))}`}
+                    className={openingBalance > 0 ? "text-success" : "text-destructive"}
+                  />
+                )}
+                <div className="border-t pt-2 mt-2 flex justify-between font-bold text-base">
+                  <span>कुल / Total</span>
+                  <span>{formatINR(current ? Number(current.total_due) : totalDue)}</span>
+                </div>
+              </div>
+            </Card>
+
+            {current && canPay && (
+              <Button
+                onClick={handlePay}
+                className="w-full h-14 text-base font-semibold"
+                style={{ background: "var(--gradient-warm)", color: "var(--warning-foreground)" }}
+              >
+                <Smartphone className="h-5 w-5 mr-2" />
+                Pay {formatINR(Number(current.total_due) - Number(current.amount_paid))} via PhonePe UPI
+              </Button>
             )}
-            <div className="border-t pt-2 mt-2 flex justify-between font-bold text-base">
-              <span>कुल / Total</span>
-              <span>{formatINR(current ? Number(current.total_due) : totalDue)}</span>
-            </div>
-          </div>
-        </Card>
+          </TabsContent>
 
-        {/* Pay */}
-        {current && status !== "paid" && (
-          <Button
-            onClick={handlePay}
-            className="w-full h-14 text-base font-semibold"
-            style={{ background: "var(--gradient-warm)", color: "var(--warning-foreground)" }}
-          >
-            <Smartphone className="h-5 w-5 mr-2" />
-            Pay {formatINR(Number(current.total_due) - Number(current.amount_paid))} via PhonePe UPI
-          </Button>
-        )}
-
-        {/* Past readings */}
-        {readings.length > 1 && (
-          <Card className="p-4">
-            <h3 className="font-semibold mb-2 text-sm">Recent History</h3>
-            <div className="space-y-1.5">
-              {[...readings]
-                .filter((r) => !(r.month === month && r.year === year))
-                .sort((a, b) => b.year - a.year || b.month - a.month)
-                .slice(0, 6)
-                .map((r) => (
-                  <div key={r.id} className="flex justify-between text-sm py-1.5 border-b last:border-0">
-                    <span>{monthLabel(r.month, r.year)}</span>
-                    <div className="flex items-center gap-2">
-                      <Badge className={statusColor(r.payment_status)}>{statusLabel(r.payment_status)}</Badge>
-                      <span className="font-medium">{formatINR(Number(r.total_due))}</span>
-                    </div>
-                  </div>
-                ))}
-            </div>
-          </Card>
-        )}
+          <TabsContent value="history" className="mt-4">
+            <HistoryList readings={readings} flat={flat} settings={settings} />
+          </TabsContent>
+        </Tabs>
       </main>
 
-      {/* Payment confirmation sheet */}
       {confirmOpen && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-foreground/40 backdrop-blur-sm p-4" onClick={() => setConfirmOpen(false)}>
           <Card className="w-full max-w-sm p-6 text-center" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold mb-2">क्या भुगतान सफल हुआ?</h3>
-            <p className="text-sm text-muted-foreground mb-5">Did the PhonePe payment go through?</p>
+            <h3 className="text-lg font-semibold mb-2">Is your transaction successful?</h3>
+            <p className="text-sm text-muted-foreground mb-5">
+              Send screenshot to owner for confirmation.
+            </p>
             <div className="flex gap-2">
               <Button variant="outline" className="flex-1" onClick={() => confirmPayment(false)}>
                 <XCircle className="h-4 w-4 mr-1" /> No
@@ -294,6 +310,33 @@ function TenantDashboard() {
           </Card>
         </div>
       )}
+    </div>
+  );
+}
+
+function HistoryList({ readings, flat, settings }: { readings: Reading[]; flat: Flat; settings: Settings | null }) {
+  const sorted = [...readings].sort((a, b) => b.year - a.year || b.month - a.month).slice(0, 12);
+  if (sorted.length === 0) {
+    return <Card className="p-6 text-center text-muted-foreground"><History className="h-6 w-6 mx-auto mb-2 opacity-50" />No history yet</Card>;
+  }
+  return (
+    <div className="space-y-2">
+      {sorted.map((r) => (
+        <Card key={r.id} className="p-4 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="font-medium text-sm">{monthLabel(r.month, r.year)}</div>
+            <div className="text-xs text-muted-foreground mt-0.5">
+              {Number(r.units).toFixed(0)} units • {formatINR(Number(r.total_due))}
+            </div>
+            <Badge className={`mt-1 ${statusColor(r.payment_status)}`}>{statusLabel(r.payment_status)}</Badge>
+          </div>
+          <Button size="sm" variant="outline" onClick={() => exportReadingPdf({
+            reading: r, flatNumber: flat.flat_number, tenantName: flat.tenant_name, ownerName: settings?.owner_name,
+          })}>
+            <FileDown className="h-4 w-4 mr-1" /> PDF
+          </Button>
+        </Card>
+      ))}
     </div>
   );
 }
