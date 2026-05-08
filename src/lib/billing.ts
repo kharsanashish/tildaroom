@@ -36,16 +36,24 @@ export function buildUpiLink(opts: {
   return `upi://pay?${params.toString()}`;
 }
 
-export type PaymentStatus = "pending" | "partial" | "paid";
+export type PaymentStatus = "pending" | "partial" | "paid" | "pending_approval" | "rejected";
 
 export function statusColor(status: PaymentStatus) {
   switch (status) {
     case "paid": return "bg-success text-success-foreground";
     case "partial": return "bg-warning text-warning-foreground";
+    case "pending_approval": return "bg-info text-info-foreground";
+    case "rejected": return "bg-destructive text-destructive-foreground";
     default: return "bg-destructive/90 text-destructive-foreground";
   }
 }
 
 export function statusLabel(status: PaymentStatus) {
-  return status === "paid" ? "Paid" : status === "partial" ? "Partial" : "Pending";
+  switch (status) {
+    case "paid": return "Approved";
+    case "partial": return "Partial";
+    case "pending_approval": return "Pending Approval";
+    case "rejected": return "Rejected";
+    default: return "Pending";
+  }
 }
