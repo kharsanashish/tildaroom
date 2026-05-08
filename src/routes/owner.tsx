@@ -45,6 +45,7 @@ interface Reading {
   prev_reading: number;
   curr_reading: number | null;
   units: number;
+  rate_per_unit: number;
   electricity_bill: number;
   rent: number;
   other_charges: number;
