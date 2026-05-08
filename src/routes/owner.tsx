@@ -59,6 +59,7 @@ interface Settings {
   electricity_rate_per_unit: number;
   owner_upi_id: string;
   owner_name: string;
+  owner_mobile: string;
 }
 
 function OwnerDashboard() {
