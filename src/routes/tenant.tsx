@@ -81,7 +81,9 @@ function TenantDashboard() {
       .filter((r) => !(r.month === month && r.year === year))
       .sort((a, b) => b.year - a.year || b.month - a.month)[0];
     if (!prev) return 0;
-    return Number(prev.amount_paid) - Number(prev.total_due);
+    const approved = prev.payment_status === "paid" || prev.payment_status === "partial";
+    const effectivePaid = approved ? Number(prev.amount_paid) : 0;
+    return effectivePaid - Number(prev.total_due);
   }, [readings, month, year]);
 
   const prevReading = useMemo(() => {
