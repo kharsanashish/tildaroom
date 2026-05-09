@@ -312,14 +312,48 @@ function TenantDashboard() {
             </Card>
 
             {current && canPay && (
-              <Button
-                onClick={handlePay}
-                className="w-full h-14 text-base font-semibold"
-                style={{ background: "var(--gradient-warm)", color: "var(--warning-foreground)" }}
-              >
-                <Smartphone className="h-5 w-5 mr-2" />
-                Pay {formatINR(Number(current.total_due) - Number(current.amount_paid))} via PhonePe UPI
-              </Button>
+              <Card className="p-4 space-y-3">
+                <h3 className="font-semibold text-sm">भुगतान विकल्प / Payment Options</h3>
+
+                <Button
+                  onClick={handlePay}
+                  disabled={paying}
+                  className="w-full h-12 text-base font-semibold"
+                  style={{ background: "var(--gradient-warm)", color: "var(--warning-foreground)" }}
+                >
+                  <Smartphone className="h-5 w-5 mr-2" />
+                  Pay Full {formatINR(Number(current.total_due) - Number(current.amount_paid))} via UPI
+                </Button>
+
+                <div className="border-t pt-3">
+                  <Label className="text-xs flex items-center gap-1"><Wallet className="h-3.5 w-3.5" /> Partial Payment (UPI)</Label>
+                  <div className="flex gap-2 mt-1">
+                    <Input
+                      type="number"
+                      inputMode="decimal"
+                      placeholder="Custom amount ₹"
+                      value={partialAmount}
+                      onChange={(e) => setPartialAmount(e.target.value)}
+                    />
+                    <Button onClick={payPartial} disabled={paying || !partialAmount} variant="outline">
+                      Pay
+                    </Button>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    Remaining due carries forward to next month.
+                  </p>
+                </div>
+
+                <Button
+                  onClick={payCash}
+                  disabled={paying}
+                  variant="outline"
+                  className="w-full h-11"
+                >
+                  <Banknote className="h-4 w-4 mr-2" />
+                  Mark as Cash Paid (owner approval required)
+                </Button>
+              </Card>
             )}
           </TabsContent>
 
