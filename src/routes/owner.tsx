@@ -278,11 +278,6 @@ function FlatCard({ flat, reading, onChange }: { flat: Flat; reading?: Reading; 
             <div className="text-xs text-destructive">Balance due {formatINR(-balance)}</div>
           )}
         </div>
-        {status !== "paid" && reading && (
-          <Button size="sm" onClick={markPaid}>
-            <CheckCircle2 className="h-4 w-4 mr-1" /> Mark Paid
-          </Button>
-        )}
       </div>
     </Card>
   );
