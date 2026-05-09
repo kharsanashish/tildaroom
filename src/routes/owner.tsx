@@ -223,12 +223,14 @@ function StatCard({ label, value, variant }: { label: string; value: number; var
   );
 }
 
-function FlatCard({ flat, reading, onChange }: { flat: Flat; reading?: Reading; onChange: () => void }) {
+function FlatCard({ flat, reading, allReadings, monthRate, onChange }: {
+  flat: Flat; reading?: Reading; allReadings: Reading[]; monthRate: number; onChange: () => void;
+}) {
   const status: PaymentStatus = reading?.payment_status ?? "pending";
   const due = reading ? Number(reading.total_due) - Number(reading.amount_paid) : Number(flat.rent) + Number(flat.other_charges);
   const balance = reading ? -(Number(reading.total_due) - Number(reading.amount_paid)) : 0;
-
-
+  const flatReadings = allReadings.filter((r) => r.flat_id === flat.id);
+  const canEditReading = status !== "paid" && status !== "pending_approval";
 
   return (
     <Card className="p-4 hover:shadow-md transition-shadow" style={{ boxShadow: "var(--shadow-card)" }}>
@@ -267,12 +269,12 @@ function FlatCard({ flat, reading, onChange }: { flat: Flat; reading?: Reading; 
           </>
         ) : (
           <div className="col-span-2 text-xs text-muted-foreground italic">
-            Awaiting tenant's reading
+            No reading for this month yet
           </div>
         )}
       </div>
 
-      <div className="mt-3 pt-3 border-t flex items-center justify-between">
+      <div className="mt-3 pt-3 border-t flex items-center justify-between gap-2">
         <div>
           <div className="text-xs text-muted-foreground">{status === "paid" ? "Paid" : "Due"}</div>
           <div className="text-lg font-bold">{formatINR(reading ? Number(reading.total_due) : due)}</div>
@@ -280,6 +282,21 @@ function FlatCard({ flat, reading, onChange }: { flat: Flat; reading?: Reading; 
             <div className="text-xs text-destructive">Balance due {formatINR(-balance)}</div>
           )}
         </div>
+        {canEditReading && (
+          <OwnerReadingDialog
+            flat={flat}
+            readings={flatReadings}
+            monthRate={monthRate}
+            current={reading}
+            onSaved={onChange}
+            trigger={
+              <Button size="sm" variant="outline">
+                <Zap className="h-4 w-4 mr-1" />
+                {reading ? "Update Reading" : "Enter Reading"}
+              </Button>
+            }
+          />
+        )}
       </div>
     </Card>
   );
