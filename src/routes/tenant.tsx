@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Building2, LogOut, Loader2, Zap, Receipt, Smartphone, CheckCircle2, XCircle, FileDown, History } from "lucide-react";
+import { Building2, LogOut, Loader2, Zap, Receipt, Smartphone, CheckCircle2, XCircle, FileDown, History, Wallet, Banknote } from "lucide-react";
 import { toast } from "sonner";
 import { buildUpiLink, currentMonthYear, formatINR, monthLabel, statusColor, statusLabel, type PaymentStatus } from "@/lib/billing";
 import { getRateFor } from "@/lib/rates";
@@ -48,6 +48,8 @@ function TenantDashboard() {
   const [currInput, setCurrInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [partialAmount, setPartialAmount] = useState("");
+  const [paying, setPaying] = useState(false);
 
   const { month, year } = currentMonthYear();
 
@@ -79,7 +81,9 @@ function TenantDashboard() {
       .filter((r) => !(r.month === month && r.year === year))
       .sort((a, b) => b.year - a.year || b.month - a.month)[0];
     if (!prev) return 0;
-    return Number(prev.amount_paid) - Number(prev.total_due);
+    const approved = prev.payment_status === "paid" || prev.payment_status === "partial";
+    const effectivePaid = approved ? Number(prev.amount_paid) : 0;
+    return effectivePaid - Number(prev.total_due);
   }, [readings, month, year]);
 
   const prevReading = useMemo(() => {
@@ -138,32 +142,65 @@ function TenantDashboard() {
     setTimeout(() => setConfirmOpen(true), 1500);
   };
 
-  const confirmPayment = async (success: boolean) => {
+  const submitPayment = async (amount: number, method: "upi" | "cash", openWhatsApp: boolean) => {
     if (!current || !flat) return;
-    setConfirmOpen(false);
-    if (!success) return toast.info("Payment kept as pending");
-
-    const amount = Number(current.total_due) - Number(current.amount_paid);
+    setPaying(true);
     const { error } = await supabase.from("meter_readings").update({
-      amount_paid: current.total_due,
+      amount_paid: amount,
       payment_status: "pending_approval",
-      payment_method: "upi",
+      payment_method: method,
       payment_timestamp: new Date().toISOString(),
     }).eq("id", current.id);
+    setPaying(false);
     if (error) return toast.error(error.message);
 
-    toast.success("Marked pending approval. Send screenshot to owner.");
+    toast.success(`${method === "cash" ? "Cash" : "Payment"} marked pending approval.`);
     refresh();
 
-    // Open WhatsApp
-    const mobile = (settings?.owner_mobile || "").replace(/\D/g, "");
-    if (mobile) {
-      const msg = `Payment done for Flat ${flat.flat_number} - ${monthLabel(month, year)} ₹${amount.toFixed(0)}. Screenshot attached.`;
-      const url = `https://wa.me/91${mobile}?text=${encodeURIComponent(msg)}`;
-      window.open(url, "_blank");
-    } else {
-      toast.warning("Owner mobile not set in settings");
+    if (openWhatsApp) {
+      const mobile = (settings?.owner_mobile || "").replace(/\D/g, "");
+      if (mobile) {
+        const label = method === "cash" ? "Cash payment" : "Payment done";
+        const msg = `${label} for Flat ${flat.flat_number} - ${monthLabel(month, year)} ₹${amount.toFixed(0)}.${method === "upi" ? " Screenshot attached." : ""}`;
+        const url = `https://wa.me/91${mobile}?text=${encodeURIComponent(msg)}`;
+        window.open(url, "_blank");
+      } else {
+        toast.warning("Owner mobile not set in settings");
+      }
     }
+  };
+
+  const confirmPayment = async (success: boolean) => {
+    setConfirmOpen(false);
+    if (!success) return toast.info("Payment kept as pending");
+    if (!current) return;
+    const amount = Number(current.total_due) - Number(current.amount_paid);
+    await submitPayment(amount, "upi", true);
+  };
+
+  const payPartial = async () => {
+    if (!current) return toast.error("Save reading first");
+    const amount = Number(partialAmount);
+    if (!amount || amount <= 0) return toast.error("Enter valid amount");
+    if (!settings?.owner_upi_id) return toast.error("Owner has not set UPI ID yet");
+    const link = buildUpiLink({
+      pa: settings.owner_upi_id,
+      pn: settings.owner_name || "Owner",
+      am: amount,
+      tn: `Flat ${flat?.flat_number} ${monthLabel(month, year)} Partial`,
+    });
+    window.location.href = link;
+    setTimeout(async () => {
+      await submitPayment(amount, "upi", true);
+      setPartialAmount("");
+    }, 1500);
+  };
+
+  const payCash = async () => {
+    if (!current) return toast.error("Save reading first");
+    const amount = Number(current.total_due) - Number(current.amount_paid);
+    if (!confirm(`Mark ₹${amount.toFixed(0)} as cash paid? Owner must approve.`)) return;
+    await submitPayment(amount, "cash", true);
   };
 
   if (loading) {
@@ -275,14 +312,48 @@ function TenantDashboard() {
             </Card>
 
             {current && canPay && (
-              <Button
-                onClick={handlePay}
-                className="w-full h-14 text-base font-semibold"
-                style={{ background: "var(--gradient-warm)", color: "var(--warning-foreground)" }}
-              >
-                <Smartphone className="h-5 w-5 mr-2" />
-                Pay {formatINR(Number(current.total_due) - Number(current.amount_paid))} via PhonePe UPI
-              </Button>
+              <Card className="p-4 space-y-3">
+                <h3 className="font-semibold text-sm">भुगतान विकल्प / Payment Options</h3>
+
+                <Button
+                  onClick={handlePay}
+                  disabled={paying}
+                  className="w-full h-12 text-base font-semibold"
+                  style={{ background: "var(--gradient-warm)", color: "var(--warning-foreground)" }}
+                >
+                  <Smartphone className="h-5 w-5 mr-2" />
+                  Pay Full {formatINR(Number(current.total_due) - Number(current.amount_paid))} via UPI
+                </Button>
+
+                <div className="border-t pt-3">
+                  <Label className="text-xs flex items-center gap-1"><Wallet className="h-3.5 w-3.5" /> Partial Payment (UPI)</Label>
+                  <div className="flex gap-2 mt-1">
+                    <Input
+                      type="number"
+                      inputMode="decimal"
+                      placeholder="Custom amount ₹"
+                      value={partialAmount}
+                      onChange={(e) => setPartialAmount(e.target.value)}
+                    />
+                    <Button onClick={payPartial} disabled={paying || !partialAmount} variant="outline">
+                      Pay
+                    </Button>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    Remaining due carries forward to next month.
+                  </p>
+                </div>
+
+                <Button
+                  onClick={payCash}
+                  disabled={paying}
+                  variant="outline"
+                  className="w-full h-11"
+                >
+                  <Banknote className="h-4 w-4 mr-2" />
+                  Mark as Cash Paid (owner approval required)
+                </Button>
+              </Card>
             )}
           </TabsContent>
 
