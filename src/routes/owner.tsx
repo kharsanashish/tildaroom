@@ -91,7 +91,7 @@ function OwnerDashboard() {
 
   useEffect(() => { refresh(); }, []);
 
-  const { month, year } = currentMonthYear();
+  
   const currentReadings = useMemo(
     () => readings.filter((r) => r.month === month && r.year === year),
     [readings, month, year],
