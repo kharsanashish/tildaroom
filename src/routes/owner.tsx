@@ -486,16 +486,20 @@ function SettingsDialog({ settings, onSaved }: { settings: Settings; onSaved: ()
 }
 
 function ApprovalsList({ flats, readings, onChange }: { flats: Flat[]; readings: Reading[]; onChange: () => void }) {
-  const pending = readings.filter((r) => r.payment_status === "pending_approval")
+  const [filter, setFilter] = useState<"all" | "upi" | "cash">("all");
+  const pending = readings
+    .filter((r) => r.payment_status === "pending_approval")
+    .filter((r) => filter === "all" || r.payment_method === filter)
     .sort((a, b) => b.year - a.year || b.month - a.month);
 
   const approve = async (r: Reading) => {
+    const isFull = Number(r.amount_paid) >= Number(r.total_due);
     const { error } = await supabase.from("meter_readings").update({
-      payment_status: "paid",
+      payment_status: isFull ? "paid" : "partial",
       payment_timestamp: new Date().toISOString(),
     }).eq("id", r.id);
     if (error) toast.error(error.message);
-    else { toast.success("Approved"); onChange(); }
+    else { toast.success(isFull ? "Approved as paid" : "Approved as partial"); onChange(); }
   };
   const reject = async (r: Reading) => {
     const { error } = await supabase.from("meter_readings").update({
@@ -506,33 +510,49 @@ function ApprovalsList({ flats, readings, onChange }: { flats: Flat[]; readings:
     else { toast.success("Rejected"); onChange(); }
   };
 
-  if (pending.length === 0) {
-    return <Card className="p-6 text-center text-muted-foreground">No pending approvals</Card>;
-  }
   return (
-    <div className="space-y-2">
-      {pending.map((r) => {
-        const flat = flats.find((f) => f.id === r.flat_id);
-        return (
-          <Card key={r.id} className="p-4">
-            <div className="flex justify-between items-start gap-3">
-              <div className="min-w-0">
-                <div className="font-medium text-sm">Flat {flat?.flat_number} • {flat?.tenant_name || "—"}</div>
-                <div className="text-xs text-muted-foreground">{monthLabel(r.month, r.year)}</div>
-                <div className="text-base font-semibold mt-1">{formatINR(Number(r.total_due))}</div>
-              </div>
-              <div className="flex gap-2 flex-shrink-0">
-                <Button size="sm" variant="outline" onClick={() => reject(r)}>
-                  <XCircle className="h-4 w-4 mr-1" /> Reject
-                </Button>
-                <Button size="sm" onClick={() => approve(r)} style={{ background: "var(--success)", color: "var(--success-foreground)" }}>
-                  <CheckCircle2 className="h-4 w-4 mr-1" /> Approve
-                </Button>
-              </div>
-            </div>
-          </Card>
-        );
-      })}
+    <div className="space-y-3">
+      <div className="flex gap-2">
+        <Button size="sm" variant={filter === "all" ? "default" : "outline"} onClick={() => setFilter("all")}>All</Button>
+        <Button size="sm" variant={filter === "upi" ? "default" : "outline"} onClick={() => setFilter("upi")}>UPI</Button>
+        <Button size="sm" variant={filter === "cash" ? "default" : "outline"} onClick={() => setFilter("cash")}>Cash</Button>
+      </div>
+      {pending.length === 0 ? (
+        <Card className="p-6 text-center text-muted-foreground">No pending approvals</Card>
+      ) : (
+        <div className="space-y-2">
+          {pending.map((r) => {
+            const flat = flats.find((f) => f.id === r.flat_id);
+            const isPartial = Number(r.amount_paid) < Number(r.total_due);
+            return (
+              <Card key={r.id} className="p-4">
+                <div className="flex justify-between items-start gap-3">
+                  <div className="min-w-0">
+                    <div className="font-medium text-sm">Flat {flat?.flat_number} • {flat?.tenant_name || "—"}</div>
+                    <div className="text-xs text-muted-foreground">{monthLabel(r.month, r.year)}</div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <Badge variant="outline" className="capitalize">{r.payment_method || "upi"}</Badge>
+                      {isPartial && <Badge className="bg-warning text-warning-foreground">Partial</Badge>}
+                    </div>
+                    <div className="text-base font-semibold mt-1">
+                      {formatINR(Number(r.amount_paid))}
+                      <span className="text-xs text-muted-foreground ml-1">of {formatINR(Number(r.total_due))}</span>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 flex-shrink-0">
+                    <Button size="sm" variant="outline" onClick={() => reject(r)}>
+                      <XCircle className="h-4 w-4 mr-1" /> Reject
+                    </Button>
+                    <Button size="sm" onClick={() => approve(r)} style={{ background: "var(--success)", color: "var(--success-foreground)" }}>
+                      <CheckCircle2 className="h-4 w-4 mr-1" /> Approve
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
