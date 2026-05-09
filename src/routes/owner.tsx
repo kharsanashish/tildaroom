@@ -70,7 +70,10 @@ function OwnerDashboard() {
   const [flats, setFlats] = useState<Flat[]>([]);
   const [readings, setReadings] = useState<Reading[]>([]);
   const [settings, setSettings] = useState<Settings | null>(null);
+  const [monthRate, setMonthRate] = useState<number>(0);
   const [loading, setLoading] = useState(true);
+
+  const { month, year } = currentMonthYear();
 
   const refresh = async () => {
     const [{ data: f }, { data: r }, { data: s }] = await Promise.all([
@@ -81,6 +84,8 @@ function OwnerDashboard() {
     setFlats((f as Flat[]) ?? []);
     setReadings((r as Reading[]) ?? []);
     setSettings(s as Settings);
+    const fallback = Number((s as Settings)?.electricity_rate_per_unit ?? 0);
+    setMonthRate(await getRateFor(month, year, fallback));
     setLoading(false);
   };
 
