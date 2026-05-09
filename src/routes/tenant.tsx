@@ -48,6 +48,8 @@ function TenantDashboard() {
   const [currInput, setCurrInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [partialAmount, setPartialAmount] = useState("");
+  const [paying, setPaying] = useState(false);
 
   const { month, year } = currentMonthYear();
 
