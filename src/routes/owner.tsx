@@ -219,20 +219,7 @@ function FlatCard({ flat, reading, onChange }: { flat: Flat; reading?: Reading; 
   const due = reading ? Number(reading.total_due) - Number(reading.amount_paid) : Number(flat.rent) + Number(flat.other_charges);
   const balance = reading ? -(Number(reading.total_due) - Number(reading.amount_paid)) : 0;
 
-  const markPaid = async () => {
-    if (!reading) return toast.error("Tenant has not submitted reading yet");
-    const { error } = await supabase
-      .from("meter_readings")
-      .update({
-        amount_paid: reading.total_due,
-        payment_status: "paid",
-        payment_method: "cash",
-        payment_timestamp: new Date().toISOString(),
-      })
-      .eq("id", reading.id);
-    if (error) toast.error(error.message);
-    else { toast.success("Marked as paid"); onChange(); }
-  };
+
 
   return (
     <Card className="p-4 hover:shadow-md transition-shadow" style={{ boxShadow: "var(--shadow-card)" }}>
