@@ -96,8 +96,14 @@ function OwnerDashboard() {
       const r = currentReadings.find((x) => x.flat_id === f.id);
       if (r) {
         expected += Number(r.total_due);
-        collected += Number(r.amount_paid);
-        pending += Math.max(0, Number(r.total_due) - Number(r.amount_paid));
+        const approved = r.payment_status === "paid" || r.payment_status === "partial";
+        if (approved) {
+          collected += Number(r.amount_paid);
+          pending += Math.max(0, Number(r.total_due) - Number(r.amount_paid));
+        } else {
+          // pending, pending_approval, rejected → not yet collected
+          pending += Number(r.total_due);
+        }
       } else {
         expected += Number(f.rent) + Number(f.other_charges);
         pending += Number(f.rent) + Number(f.other_charges);
