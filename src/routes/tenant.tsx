@@ -142,32 +142,65 @@ function TenantDashboard() {
     setTimeout(() => setConfirmOpen(true), 1500);
   };
 
-  const confirmPayment = async (success: boolean) => {
+  const submitPayment = async (amount: number, method: "upi" | "cash", openWhatsApp: boolean) => {
     if (!current || !flat) return;
-    setConfirmOpen(false);
-    if (!success) return toast.info("Payment kept as pending");
-
-    const amount = Number(current.total_due) - Number(current.amount_paid);
+    setPaying(true);
     const { error } = await supabase.from("meter_readings").update({
-      amount_paid: current.total_due,
+      amount_paid: amount,
       payment_status: "pending_approval",
-      payment_method: "upi",
+      payment_method: method,
       payment_timestamp: new Date().toISOString(),
     }).eq("id", current.id);
+    setPaying(false);
     if (error) return toast.error(error.message);
 
-    toast.success("Marked pending approval. Send screenshot to owner.");
+    toast.success(`${method === "cash" ? "Cash" : "Payment"} marked pending approval.`);
     refresh();
 
-    // Open WhatsApp
-    const mobile = (settings?.owner_mobile || "").replace(/\D/g, "");
-    if (mobile) {
-      const msg = `Payment done for Flat ${flat.flat_number} - ${monthLabel(month, year)} ₹${amount.toFixed(0)}. Screenshot attached.`;
-      const url = `https://wa.me/91${mobile}?text=${encodeURIComponent(msg)}`;
-      window.open(url, "_blank");
-    } else {
-      toast.warning("Owner mobile not set in settings");
+    if (openWhatsApp) {
+      const mobile = (settings?.owner_mobile || "").replace(/\D/g, "");
+      if (mobile) {
+        const label = method === "cash" ? "Cash payment" : "Payment done";
+        const msg = `${label} for Flat ${flat.flat_number} - ${monthLabel(month, year)} ₹${amount.toFixed(0)}.${method === "upi" ? " Screenshot attached." : ""}`;
+        const url = `https://wa.me/91${mobile}?text=${encodeURIComponent(msg)}`;
+        window.open(url, "_blank");
+      } else {
+        toast.warning("Owner mobile not set in settings");
+      }
     }
+  };
+
+  const confirmPayment = async (success: boolean) => {
+    setConfirmOpen(false);
+    if (!success) return toast.info("Payment kept as pending");
+    if (!current) return;
+    const amount = Number(current.total_due) - Number(current.amount_paid);
+    await submitPayment(amount, "upi", true);
+  };
+
+  const payPartial = async () => {
+    if (!current) return toast.error("Save reading first");
+    const amount = Number(partialAmount);
+    if (!amount || amount <= 0) return toast.error("Enter valid amount");
+    if (!settings?.owner_upi_id) return toast.error("Owner has not set UPI ID yet");
+    const link = buildUpiLink({
+      pa: settings.owner_upi_id,
+      pn: settings.owner_name || "Owner",
+      am: amount,
+      tn: `Flat ${flat?.flat_number} ${monthLabel(month, year)} Partial`,
+    });
+    window.location.href = link;
+    setTimeout(async () => {
+      await submitPayment(amount, "upi", true);
+      setPartialAmount("");
+    }, 1500);
+  };
+
+  const payCash = async () => {
+    if (!current) return toast.error("Save reading first");
+    const amount = Number(current.total_due) - Number(current.amount_paid);
+    if (!confirm(`Mark ₹${amount.toFixed(0)} as cash paid? Owner must approve.`)) return;
+    await submitPayment(amount, "cash", true);
   };
 
   if (loading) {
