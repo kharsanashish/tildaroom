@@ -185,6 +185,8 @@ function OwnerDashboard() {
                     key={f.id}
                     flat={f}
                     reading={currentReadings.find((r) => r.flat_id === f.id)}
+                    allReadings={readings}
+                    monthRate={monthRate}
                     onChange={refresh}
                   />
                 ))}
