@@ -10,14 +10,16 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Building2, LogOut, Plus, Settings as SettingsIcon, Pencil, Trash2, IndianRupee, History, CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import { Building2, LogOut, Plus, Settings as SettingsIcon, Pencil, Trash2, IndianRupee, History, CheckCircle2, XCircle, Loader2, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
 import { createTenant, deleteTenant } from "@/lib/admin.functions";
 import { currentMonthYear, formatINR, monthLabel, statusColor, statusLabel, type PaymentStatus } from "@/lib/billing";
+import { getRateFor } from "@/lib/rates";
 import { RatePrompt } from "@/components/rate-prompt";
 import { JanuaryReview } from "@/components/january-review";
 import { EditReadingDialog } from "@/components/edit-reading-dialog";
+import { OwnerReadingDialog } from "@/components/owner-reading-dialog";
 
 export const Route = createFileRoute("/owner")({
   component: () => (
@@ -68,7 +70,10 @@ function OwnerDashboard() {
   const [flats, setFlats] = useState<Flat[]>([]);
   const [readings, setReadings] = useState<Reading[]>([]);
   const [settings, setSettings] = useState<Settings | null>(null);
+  const [monthRate, setMonthRate] = useState<number>(0);
   const [loading, setLoading] = useState(true);
+
+  const { month, year } = currentMonthYear();
 
   const refresh = async () => {
     const [{ data: f }, { data: r }, { data: s }] = await Promise.all([
@@ -79,12 +84,14 @@ function OwnerDashboard() {
     setFlats((f as Flat[]) ?? []);
     setReadings((r as Reading[]) ?? []);
     setSettings(s as Settings);
+    const fallback = Number((s as Settings)?.electricity_rate_per_unit ?? 0);
+    setMonthRate(await getRateFor(month, year, fallback));
     setLoading(false);
   };
 
   useEffect(() => { refresh(); }, []);
 
-  const { month, year } = currentMonthYear();
+  
   const currentReadings = useMemo(
     () => readings.filter((r) => r.month === month && r.year === year),
     [readings, month, year],
@@ -178,6 +185,8 @@ function OwnerDashboard() {
                     key={f.id}
                     flat={f}
                     reading={currentReadings.find((r) => r.flat_id === f.id)}
+                    allReadings={readings}
+                    monthRate={monthRate}
                     onChange={refresh}
                   />
                 ))}
@@ -214,12 +223,14 @@ function StatCard({ label, value, variant }: { label: string; value: number; var
   );
 }
 
-function FlatCard({ flat, reading, onChange }: { flat: Flat; reading?: Reading; onChange: () => void }) {
+function FlatCard({ flat, reading, allReadings, monthRate, onChange }: {
+  flat: Flat; reading?: Reading; allReadings: Reading[]; monthRate: number; onChange: () => void;
+}) {
   const status: PaymentStatus = reading?.payment_status ?? "pending";
   const due = reading ? Number(reading.total_due) - Number(reading.amount_paid) : Number(flat.rent) + Number(flat.other_charges);
   const balance = reading ? -(Number(reading.total_due) - Number(reading.amount_paid)) : 0;
-
-
+  const flatReadings = allReadings.filter((r) => r.flat_id === flat.id);
+  const canEditReading = status !== "paid" && status !== "pending_approval";
 
   return (
     <Card className="p-4 hover:shadow-md transition-shadow" style={{ boxShadow: "var(--shadow-card)" }}>
@@ -258,12 +269,12 @@ function FlatCard({ flat, reading, onChange }: { flat: Flat; reading?: Reading; 
           </>
         ) : (
           <div className="col-span-2 text-xs text-muted-foreground italic">
-            Awaiting tenant's reading
+            No reading for this month yet
           </div>
         )}
       </div>
 
-      <div className="mt-3 pt-3 border-t flex items-center justify-between">
+      <div className="mt-3 pt-3 border-t flex items-center justify-between gap-2">
         <div>
           <div className="text-xs text-muted-foreground">{status === "paid" ? "Paid" : "Due"}</div>
           <div className="text-lg font-bold">{formatINR(reading ? Number(reading.total_due) : due)}</div>
@@ -271,6 +282,21 @@ function FlatCard({ flat, reading, onChange }: { flat: Flat; reading?: Reading; 
             <div className="text-xs text-destructive">Balance due {formatINR(-balance)}</div>
           )}
         </div>
+        {canEditReading && (
+          <OwnerReadingDialog
+            flat={flat}
+            readings={flatReadings}
+            monthRate={monthRate}
+            current={reading}
+            onSaved={onChange}
+            trigger={
+              <Button size="sm" variant="outline">
+                <Zap className="h-4 w-4 mr-1" />
+                {reading ? "Update Reading" : "Enter Reading"}
+              </Button>
+            }
+          />
+        )}
       </div>
     </Card>
   );

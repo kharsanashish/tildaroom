@@ -15,7 +15,7 @@ interface Reading {
   total_due: number; amount_paid: number; payment_status: PaymentStatus;
 }
 
-const STATUSES: PaymentStatus[] = ["pending_approval", "paid", "rejected", "partial"];
+const STATUSES: PaymentStatus[] = ["pending", "pending_approval", "paid", "rejected", "partial"];
 
 export function EditReadingDialog({ reading, open, onOpenChange, onSaved }: {
   reading: Reading; open: boolean; onOpenChange: (v: boolean) => void; onSaved: () => void;
