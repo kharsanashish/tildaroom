@@ -55,8 +55,9 @@ export function OwnerReadingDialog({
   const units = Math.max(0, v - prevReading);
   const electricity = units * monthRate;
   const rent = Number(flat.rent ?? 0);
+  const maintenance = Number(flat.maintenance ?? 0);
   const other = Number(flat.other_charges ?? 0);
-  const totalDue = rent + electricity + other - openingBalance;
+  const totalDue = rent + electricity + maintenance + other - openingBalance;
 
   const save = async () => {
     if (!v || v < prevReading) return toast.error(`Reading must be ≥ ${prevReading}`);
@@ -69,7 +70,7 @@ export function OwnerReadingDialog({
       units,
       rate_per_unit: monthRate,
       electricity_bill: electricity,
-      rent, other_charges: other,
+      rent, maintenance, other_charges: other,
       opening_balance: openingBalance,
       total_due: totalDue,
       amount_paid: current?.amount_paid ?? 0,
