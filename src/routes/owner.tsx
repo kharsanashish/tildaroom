@@ -335,7 +335,9 @@ function FlatDialog({ flat, onSaved }: { flat?: Flat; onSaved: () => void }) {
   const [tenantUsername, setTenantUsername] = useState(flat?.tenant_mobile ?? "");
   const [tenantPassword, setTenantPassword] = useState("");
   const [rent, setRent] = useState(String(flat?.rent ?? ""));
+  const [maintenance, setMaintenance] = useState(String(flat?.maintenance ?? ""));
   const [other, setOther] = useState(String(flat?.other_charges ?? ""));
+  const [whatsapp, setWhatsapp] = useState(flat?.tenant_whatsapp ?? "");
   const [prev, setPrev] = useState(String(flat?.prev_meter_reading ?? ""));
   const [saving, setSaving] = useState(false);
 
