@@ -233,10 +233,12 @@ function FlatCard({ flat, reading, allReadings, monthRate, onChange }: {
   flat: Flat; reading?: Reading; allReadings: Reading[]; monthRate: number; onChange: () => void;
 }) {
   const status: PaymentStatus = reading?.payment_status ?? "pending";
-  const due = reading ? Number(reading.total_due) - Number(reading.amount_paid) : Number(flat.rent) + Number(flat.other_charges);
+  const fallbackDue = Number(flat.rent) + Number(flat.maintenance ?? 0) + Number(flat.other_charges);
+  const due = reading ? Number(reading.total_due) - Number(reading.amount_paid) : fallbackDue;
   const balance = reading ? -(Number(reading.total_due) - Number(reading.amount_paid)) : 0;
   const flatReadings = allReadings.filter((r) => r.flat_id === flat.id);
   const canEditReading = status !== "paid" && status !== "pending_approval";
+  const waNumber = (flat.tenant_whatsapp || "").replace(/\D/g, "");
 
   return (
     <Card className="p-4 hover:shadow-md transition-shadow" style={{ boxShadow: "var(--shadow-card)" }}>
@@ -250,7 +252,27 @@ function FlatCard({ flat, reading, allReadings, monthRate, onChange }: {
             {flat.tenant_name || "(no tenant)"} {flat.tenant_mobile && `• ${flat.tenant_mobile}`}
           </div>
         </div>
-        <FlatDialog flat={flat} onSaved={onChange} />
+        <div className="flex items-center gap-1">
+          {waNumber && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-success"
+              asChild
+              title="WhatsApp tenant"
+            >
+              <a
+                href={`https://wa.me/91${waNumber}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <MessageCircle className="h-4 w-4" />
+              </a>
+            </Button>
+          )}
+          <FlatDialog flat={flat} onSaved={onChange} />
+        </div>
       </div>
 
       <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
@@ -259,23 +281,21 @@ function FlatCard({ flat, reading, allReadings, monthRate, onChange }: {
           <div className="font-medium">{formatINR(Number(flat.rent))}</div>
         </div>
         <div>
+          <div className="text-xs text-muted-foreground">Maintenance</div>
+          <div className="font-medium">{formatINR(Number(flat.maintenance ?? 0))}</div>
+        </div>
+        <div>
           <div className="text-xs text-muted-foreground">Other</div>
           <div className="font-medium">{formatINR(Number(flat.other_charges))}</div>
         </div>
         {reading ? (
-          <>
-            <div>
-              <div className="text-xs text-muted-foreground">Units</div>
-              <div className="font-medium">{Number(reading.units).toFixed(0)} units</div>
-            </div>
-            <div>
-              <div className="text-xs text-muted-foreground">Bill</div>
-              <div className="font-medium">{formatINR(Number(reading.electricity_bill))}</div>
-            </div>
-          </>
+          <div>
+            <div className="text-xs text-muted-foreground">Bill ({Number(reading.units).toFixed(0)}u)</div>
+            <div className="font-medium">{formatINR(Number(reading.electricity_bill))}</div>
+          </div>
         ) : (
-          <div className="col-span-2 text-xs text-muted-foreground italic">
-            No reading for this month yet
+          <div>
+            <div className="text-xs text-muted-foreground italic">No reading yet</div>
           </div>
         )}
       </div>
