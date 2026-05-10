@@ -443,13 +443,21 @@ function FlatDialog({ flat, onSaved }: { flat?: Flat; onSaved: () => void }) {
             <Label>Tenant Password {flat?.tenant_id && <span className="text-xs text-muted-foreground">(leave empty to keep)</span>}</Label>
             <Input value={tenantPassword} onChange={(e) => setTenantPassword(e.target.value)} type="text" placeholder={flat?.tenant_id ? "•••••" : "Set login password"} />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label>WhatsApp Mobile (10 digits, no +91)</Label>
+            <Input value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} placeholder="9876543210" inputMode="numeric" />
+          </div>
+          <div className="grid grid-cols-3 gap-3">
             <div>
-              <Label>Monthly Rent (₹)</Label>
+              <Label>Rent (₹)</Label>
               <Input value={rent} onChange={(e) => setRent(e.target.value)} type="number" inputMode="numeric" />
             </div>
             <div>
-              <Label>Other Charges (₹)</Label>
+              <Label>Maintenance (₹)</Label>
+              <Input value={maintenance} onChange={(e) => setMaintenance(e.target.value)} type="number" inputMode="numeric" />
+            </div>
+            <div>
+              <Label>Other (₹)</Label>
               <Input value={other} onChange={(e) => setOther(e.target.value)} type="number" inputMode="numeric" />
             </div>
           </div>
