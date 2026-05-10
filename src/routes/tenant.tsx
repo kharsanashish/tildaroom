@@ -297,14 +297,13 @@ function TenantDashboard() {
                 <Row label="Units consumed" value={`${units.toFixed(0)} × ₹${rate}`} />
                 <Row label="बिजली बिल / Electricity" value={formatINR(electricity)} />
                 <Row label="किराया / Rent" value={formatINR(rent)} />
+                <Row label="मेंटेनेंस / Maintenance" value={formatINR(maintenance)} />
                 <Row label="अन्य / Other charges" value={formatINR(other)} />
-                {openingBalance !== 0 && (
-                  <Row
-                    label={openingBalance > 0 ? "Advance (last month)" : "Balance due (last month)"}
-                    value={`${openingBalance > 0 ? "−" : "+"} ${formatINR(Math.abs(openingBalance))}`}
-                    className={openingBalance > 0 ? "text-success" : "text-destructive"}
-                  />
-                )}
+                <Row
+                  label={openingBalance >= 0 ? "पिछला बैलेंस / Previous balance (advance)" : "पिछला बकाया / Previous balance (due)"}
+                  value={`${openingBalance > 0 ? "−" : openingBalance < 0 ? "+" : ""} ${formatINR(Math.abs(openingBalance))}`}
+                  className={openingBalance > 0 ? "text-success" : openingBalance < 0 ? "text-destructive" : ""}
+                />
                 <div className="border-t pt-2 mt-2 flex justify-between font-bold text-base">
                   <span>कुल / Total</span>
                   <span>{formatINR(current ? Number(current.total_due) : totalDue)}</span>
