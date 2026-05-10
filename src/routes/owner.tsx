@@ -36,7 +36,9 @@ interface Flat {
   tenant_id: string | null;
   tenant_name: string;
   tenant_mobile: string;
+  tenant_whatsapp: string;
   rent: number;
+  maintenance: number;
   other_charges: number;
   prev_meter_reading: number;
 }
@@ -51,6 +53,7 @@ interface Reading {
   rate_per_unit: number;
   electricity_bill: number;
   rent: number;
+  maintenance: number;
   other_charges: number;
   opening_balance: number;
   total_due: number;
