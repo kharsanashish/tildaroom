@@ -116,8 +116,9 @@ function OwnerDashboard() {
           pending += Number(r.total_due);
         }
       } else {
-        expected += Number(f.rent) + Number(f.other_charges);
-        pending += Number(f.rent) + Number(f.other_charges);
+        const fallback = Number(f.rent) + Number(f.maintenance ?? 0) + Number(f.other_charges);
+        expected += fallback;
+        pending += fallback;
       }
     }
     return { expected, collected, pending };
