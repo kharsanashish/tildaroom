@@ -99,8 +99,9 @@ function TenantDashboard() {
   const units = Math.max(0, currNum - prevReading);
   const electricity = units * rate;
   const rent = Number(flat?.rent ?? 0);
+  const maintenance = Number(flat?.maintenance ?? 0);
   const other = Number(flat?.other_charges ?? 0);
-  const totalDue = rent + electricity + other - openingBalance;
+  const totalDue = rent + electricity + maintenance + other - openingBalance;
 
   const saveReading = async () => {
     if (!flat) return;
@@ -115,9 +116,9 @@ function TenantDashboard() {
       units: v - prevReading,
       rate_per_unit: rate,
       electricity_bill: (v - prevReading) * rate,
-      rent, other_charges: other,
+      rent, maintenance, other_charges: other,
       opening_balance: openingBalance,
-      total_due: rent + (v - prevReading) * rate + other - openingBalance,
+      total_due: rent + (v - prevReading) * rate + maintenance + other - openingBalance,
       amount_paid: 0,
       payment_status: "pending" as const,
     };
