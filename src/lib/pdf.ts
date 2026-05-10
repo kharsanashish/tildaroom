@@ -58,6 +58,7 @@ export function exportReadingPdf(opts: {
   doc.setFont("helvetica", "normal");
   rowL("Electricity Bill", formatINR(Number(r.electricity_bill)));
   rowL("Rent", formatINR(Number(r.rent)));
+  rowL("Maintenance", formatINR(Number(r.maintenance ?? 0)));
   rowL("Other Charges", formatINR(Number(r.other_charges)));
   if (Number(r.opening_balance) !== 0) {
     rowL(
