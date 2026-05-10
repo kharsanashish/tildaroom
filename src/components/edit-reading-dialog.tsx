@@ -36,6 +36,7 @@ export function EditReadingDialog({ reading, open, onOpenChange, onSaved }: {
       rate_per_unit: Number(s.rate_per_unit) || 0,
       electricity_bill: Number(s.electricity_bill) || 0,
       rent: Number(s.rent) || 0,
+      maintenance: Number(s.maintenance) || 0,
       other_charges: Number(s.other_charges) || 0,
       opening_balance: Number(s.opening_balance) || 0,
       total_due: Number(s.total_due) || 0,
