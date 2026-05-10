@@ -68,6 +68,7 @@ export function EditReadingDialog({ reading, open, onOpenChange, onSaved }: {
           <F label="Rate / Unit" k="rate_per_unit" />
           <F label="Electricity Bill" k="electricity_bill" />
           <F label="Rent" k="rent" />
+          <F label="Maintenance" k="maintenance" />
           <F label="Other Charges" k="other_charges" />
           <F label="Opening Balance" k="opening_balance" />
           <F label="Total Due" k="total_due" />
