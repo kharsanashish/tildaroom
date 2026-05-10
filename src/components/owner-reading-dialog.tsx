@@ -111,14 +111,13 @@ export function OwnerReadingDialog({
             <Row label={`Units × ₹${monthRate}`} value={`${units.toFixed(0)} units`} />
             <Row label="Electricity" value={formatINR(electricity)} />
             <Row label="Rent" value={formatINR(rent)} />
+            <Row label="Maintenance" value={formatINR(maintenance)} />
             <Row label="Other charges" value={formatINR(other)} />
-            {openingBalance !== 0 && (
-              <Row
-                label={openingBalance > 0 ? "Advance (last month)" : "Balance due (last month)"}
-                value={`${openingBalance > 0 ? "−" : "+"} ${formatINR(Math.abs(openingBalance))}`}
-                className={openingBalance > 0 ? "text-success" : "text-destructive"}
-              />
-            )}
+            <Row
+              label={openingBalance >= 0 ? "Previous balance (advance)" : "Previous balance (due)"}
+              value={`${openingBalance > 0 ? "−" : openingBalance < 0 ? "+" : ""} ${formatINR(Math.abs(openingBalance))}`}
+              className={openingBalance > 0 ? "text-success" : openingBalance < 0 ? "text-destructive" : ""}
+            />
             <div className="border-t pt-2 mt-2 flex justify-between font-bold">
               <span>Total Due</span>
               <span>{formatINR(totalDue)}</span>
