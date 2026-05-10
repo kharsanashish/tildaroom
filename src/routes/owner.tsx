@@ -20,6 +20,7 @@ import { RatePrompt } from "@/components/rate-prompt";
 import { JanuaryReview } from "@/components/january-review";
 import { EditReadingDialog } from "@/components/edit-reading-dialog";
 import { OwnerReadingDialog } from "@/components/owner-reading-dialog";
+import { RatesManager } from "@/components/rates-manager";
 
 export const Route = createFileRoute("/owner")({
   component: () => (
@@ -141,6 +142,7 @@ function OwnerDashboard() {
             </div>
           </div>
           <div className="flex gap-2">
+            <RatesManager onChange={refresh} />
             <SettingsDialog settings={settings!} onSaved={refresh} />
             <Button size="sm" variant="ghost" onClick={signOut}><LogOut className="h-4 w-4" /></Button>
           </div>
