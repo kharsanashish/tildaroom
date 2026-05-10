@@ -142,6 +142,7 @@ function OwnerDashboard() {
             </div>
           </div>
           <div className="flex gap-2">
+            <RatesManager onChange={refresh} />
             <SettingsDialog settings={settings!} onSaved={refresh} />
             <Button size="sm" variant="ghost" onClick={signOut}><LogOut className="h-4 w-4" /></Button>
           </div>
