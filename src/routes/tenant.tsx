@@ -24,13 +24,13 @@ export const Route = createFileRoute("/tenant")({
 });
 
 interface Flat {
-  id: string; flat_number: string; rent: number; other_charges: number; prev_meter_reading: number;
+  id: string; flat_number: string; rent: number; maintenance: number; other_charges: number; prev_meter_reading: number;
   tenant_name: string;
 }
 interface Reading {
   id: string; flat_id: string; month: number; year: number;
   prev_reading: number; curr_reading: number | null; units: number;
-  rate_per_unit: number; electricity_bill: number; rent: number; other_charges: number;
+  rate_per_unit: number; electricity_bill: number; rent: number; maintenance: number; other_charges: number;
   opening_balance: number; total_due: number; amount_paid: number; payment_status: PaymentStatus;
   payment_method: string | null; payment_timestamp: string | null;
 }
