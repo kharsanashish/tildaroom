@@ -20,6 +20,7 @@ import { RatePrompt } from "@/components/rate-prompt";
 import { JanuaryReview } from "@/components/january-review";
 import { EditReadingDialog } from "@/components/edit-reading-dialog";
 import { OwnerReadingDialog } from "@/components/owner-reading-dialog";
+import { RatesManager } from "@/components/rates-manager";
 
 export const Route = createFileRoute("/owner")({
   component: () => (
