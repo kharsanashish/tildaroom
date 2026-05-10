@@ -5,7 +5,7 @@ interface ReadingPdf {
   month: number; year: number;
   prev_reading: number; curr_reading: number | null; units: number;
   rate_per_unit: number; electricity_bill: number;
-  rent: number; other_charges: number; opening_balance: number;
+  rent: number; maintenance?: number; other_charges: number; opening_balance: number;
   total_due: number; amount_paid: number; payment_status: PaymentStatus;
   payment_method?: string | null; payment_timestamp?: string | null;
 }
@@ -58,6 +58,7 @@ export function exportReadingPdf(opts: {
   doc.setFont("helvetica", "normal");
   rowL("Electricity Bill", formatINR(Number(r.electricity_bill)));
   rowL("Rent", formatINR(Number(r.rent)));
+  rowL("Maintenance", formatINR(Number(r.maintenance ?? 0)));
   rowL("Other Charges", formatINR(Number(r.other_charges)));
   if (Number(r.opening_balance) !== 0) {
     rowL(

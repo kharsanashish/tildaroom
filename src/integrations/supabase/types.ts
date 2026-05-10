@@ -44,12 +44,14 @@ export type Database = {
           flat_number: string
           id: string
           last_reviewed_year: number | null
+          maintenance: number
           other_charges: number
           prev_meter_reading: number
           rent: number
           tenant_id: string | null
           tenant_mobile: string
           tenant_name: string
+          tenant_whatsapp: string
           updated_at: string
         }
         Insert: {
@@ -57,12 +59,14 @@ export type Database = {
           flat_number: string
           id?: string
           last_reviewed_year?: number | null
+          maintenance?: number
           other_charges?: number
           prev_meter_reading?: number
           rent?: number
           tenant_id?: string | null
           tenant_mobile?: string
           tenant_name?: string
+          tenant_whatsapp?: string
           updated_at?: string
         }
         Update: {
@@ -70,12 +74,14 @@ export type Database = {
           flat_number?: string
           id?: string
           last_reviewed_year?: number | null
+          maintenance?: number
           other_charges?: number
           prev_meter_reading?: number
           rent?: number
           tenant_id?: string | null
           tenant_mobile?: string
           tenant_name?: string
+          tenant_whatsapp?: string
           updated_at?: string
         }
         Relationships: []
@@ -88,6 +94,7 @@ export type Database = {
           electricity_bill: number
           flat_id: string
           id: string
+          maintenance: number
           month: number
           opening_balance: number
           other_charges: number
@@ -109,6 +116,7 @@ export type Database = {
           electricity_bill?: number
           flat_id: string
           id?: string
+          maintenance?: number
           month: number
           opening_balance?: number
           other_charges?: number
@@ -130,6 +138,7 @@ export type Database = {
           electricity_bill?: number
           flat_id?: string
           id?: string
+          maintenance?: number
           month?: number
           opening_balance?: number
           other_charges?: number

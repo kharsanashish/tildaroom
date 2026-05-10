@@ -11,7 +11,7 @@ interface Reading {
   id: string;
   prev_reading: number; curr_reading: number | null;
   units: number; rate_per_unit: number; electricity_bill: number;
-  rent: number; other_charges: number; opening_balance: number;
+  rent: number; maintenance: number; other_charges: number; opening_balance: number;
   total_due: number; amount_paid: number; payment_status: PaymentStatus;
 }
 
@@ -36,6 +36,7 @@ export function EditReadingDialog({ reading, open, onOpenChange, onSaved }: {
       rate_per_unit: Number(s.rate_per_unit) || 0,
       electricity_bill: Number(s.electricity_bill) || 0,
       rent: Number(s.rent) || 0,
+      maintenance: Number(s.maintenance) || 0,
       other_charges: Number(s.other_charges) || 0,
       opening_balance: Number(s.opening_balance) || 0,
       total_due: Number(s.total_due) || 0,
@@ -67,6 +68,7 @@ export function EditReadingDialog({ reading, open, onOpenChange, onSaved }: {
           <F label="Rate / Unit" k="rate_per_unit" />
           <F label="Electricity Bill" k="electricity_bill" />
           <F label="Rent" k="rent" />
+          <F label="Maintenance" k="maintenance" />
           <F label="Other Charges" k="other_charges" />
           <F label="Opening Balance" k="opening_balance" />
           <F label="Total Due" k="total_due" />

@@ -24,13 +24,13 @@ export const Route = createFileRoute("/tenant")({
 });
 
 interface Flat {
-  id: string; flat_number: string; rent: number; other_charges: number; prev_meter_reading: number;
+  id: string; flat_number: string; rent: number; maintenance: number; other_charges: number; prev_meter_reading: number;
   tenant_name: string;
 }
 interface Reading {
   id: string; flat_id: string; month: number; year: number;
   prev_reading: number; curr_reading: number | null; units: number;
-  rate_per_unit: number; electricity_bill: number; rent: number; other_charges: number;
+  rate_per_unit: number; electricity_bill: number; rent: number; maintenance: number; other_charges: number;
   opening_balance: number; total_due: number; amount_paid: number; payment_status: PaymentStatus;
   payment_method: string | null; payment_timestamp: string | null;
 }
@@ -99,8 +99,9 @@ function TenantDashboard() {
   const units = Math.max(0, currNum - prevReading);
   const electricity = units * rate;
   const rent = Number(flat?.rent ?? 0);
+  const maintenance = Number(flat?.maintenance ?? 0);
   const other = Number(flat?.other_charges ?? 0);
-  const totalDue = rent + electricity + other - openingBalance;
+  const totalDue = rent + electricity + maintenance + other - openingBalance;
 
   const saveReading = async () => {
     if (!flat) return;
@@ -115,9 +116,9 @@ function TenantDashboard() {
       units: v - prevReading,
       rate_per_unit: rate,
       electricity_bill: (v - prevReading) * rate,
-      rent, other_charges: other,
+      rent, maintenance, other_charges: other,
       opening_balance: openingBalance,
-      total_due: rent + (v - prevReading) * rate + other - openingBalance,
+      total_due: rent + (v - prevReading) * rate + maintenance + other - openingBalance,
       amount_paid: 0,
       payment_status: "pending" as const,
     };
@@ -296,14 +297,13 @@ function TenantDashboard() {
                 <Row label="Units consumed" value={`${units.toFixed(0)} × ₹${rate}`} />
                 <Row label="बिजली बिल / Electricity" value={formatINR(electricity)} />
                 <Row label="किराया / Rent" value={formatINR(rent)} />
+                <Row label="मेंटेनेंस / Maintenance" value={formatINR(maintenance)} />
                 <Row label="अन्य / Other charges" value={formatINR(other)} />
-                {openingBalance !== 0 && (
-                  <Row
-                    label={openingBalance > 0 ? "Advance (last month)" : "Balance due (last month)"}
-                    value={`${openingBalance > 0 ? "−" : "+"} ${formatINR(Math.abs(openingBalance))}`}
-                    className={openingBalance > 0 ? "text-success" : "text-destructive"}
-                  />
-                )}
+                <Row
+                  label={openingBalance >= 0 ? "पिछला बैलेंस / Previous balance (advance)" : "पिछला बकाया / Previous balance (due)"}
+                  value={`${openingBalance > 0 ? "−" : openingBalance < 0 ? "+" : ""} ${formatINR(Math.abs(openingBalance))}`}
+                  className={openingBalance > 0 ? "text-success" : openingBalance < 0 ? "text-destructive" : ""}
+                />
                 <div className="border-t pt-2 mt-2 flex justify-between font-bold text-base">
                   <span>कुल / Total</span>
                   <span>{formatINR(current ? Number(current.total_due) : totalDue)}</span>

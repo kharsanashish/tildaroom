@@ -9,12 +9,12 @@ import { toast } from "sonner";
 import { currentMonthYear, formatINR, monthLabel, type PaymentStatus } from "@/lib/billing";
 
 interface Flat {
-  id: string; flat_number: string; rent: number; other_charges: number; prev_meter_reading: number;
+  id: string; flat_number: string; rent: number; maintenance: number; other_charges: number; prev_meter_reading: number;
 }
 interface Reading {
   id: string; flat_id: string; month: number; year: number;
   prev_reading: number; curr_reading: number | null; units: number;
-  rate_per_unit: number; electricity_bill: number; rent: number; other_charges: number;
+  rate_per_unit: number; electricity_bill: number; rent: number; maintenance: number; other_charges: number;
   opening_balance: number; total_due: number; amount_paid: number; payment_status: PaymentStatus;
 }
 
@@ -55,8 +55,9 @@ export function OwnerReadingDialog({
   const units = Math.max(0, v - prevReading);
   const electricity = units * monthRate;
   const rent = Number(flat.rent ?? 0);
+  const maintenance = Number(flat.maintenance ?? 0);
   const other = Number(flat.other_charges ?? 0);
-  const totalDue = rent + electricity + other - openingBalance;
+  const totalDue = rent + electricity + maintenance + other - openingBalance;
 
   const save = async () => {
     if (!v || v < prevReading) return toast.error(`Reading must be ≥ ${prevReading}`);
@@ -69,7 +70,7 @@ export function OwnerReadingDialog({
       units,
       rate_per_unit: monthRate,
       electricity_bill: electricity,
-      rent, other_charges: other,
+      rent, maintenance, other_charges: other,
       opening_balance: openingBalance,
       total_due: totalDue,
       amount_paid: current?.amount_paid ?? 0,
@@ -110,14 +111,13 @@ export function OwnerReadingDialog({
             <Row label={`Units × ₹${monthRate}`} value={`${units.toFixed(0)} units`} />
             <Row label="Electricity" value={formatINR(electricity)} />
             <Row label="Rent" value={formatINR(rent)} />
+            <Row label="Maintenance" value={formatINR(maintenance)} />
             <Row label="Other charges" value={formatINR(other)} />
-            {openingBalance !== 0 && (
-              <Row
-                label={openingBalance > 0 ? "Advance (last month)" : "Balance due (last month)"}
-                value={`${openingBalance > 0 ? "−" : "+"} ${formatINR(Math.abs(openingBalance))}`}
-                className={openingBalance > 0 ? "text-success" : "text-destructive"}
-              />
-            )}
+            <Row
+              label={openingBalance >= 0 ? "Previous balance (advance)" : "Previous balance (due)"}
+              value={`${openingBalance > 0 ? "−" : openingBalance < 0 ? "+" : ""} ${formatINR(Math.abs(openingBalance))}`}
+              className={openingBalance > 0 ? "text-success" : openingBalance < 0 ? "text-destructive" : ""}
+            />
             <div className="border-t pt-2 mt-2 flex justify-between font-bold">
               <span>Total Due</span>
               <span>{formatINR(totalDue)}</span>

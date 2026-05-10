@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Building2, LogOut, Plus, Settings as SettingsIcon, Pencil, Trash2, IndianRupee, History, CheckCircle2, XCircle, Loader2, Zap } from "lucide-react";
+import { Building2, LogOut, Plus, Settings as SettingsIcon, Pencil, Trash2, IndianRupee, History, CheckCircle2, XCircle, Loader2, Zap, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
 import { createTenant, deleteTenant } from "@/lib/admin.functions";
@@ -36,7 +36,9 @@ interface Flat {
   tenant_id: string | null;
   tenant_name: string;
   tenant_mobile: string;
+  tenant_whatsapp: string;
   rent: number;
+  maintenance: number;
   other_charges: number;
   prev_meter_reading: number;
 }
@@ -51,6 +53,7 @@ interface Reading {
   rate_per_unit: number;
   electricity_bill: number;
   rent: number;
+  maintenance: number;
   other_charges: number;
   opening_balance: number;
   total_due: number;
@@ -113,8 +116,9 @@ function OwnerDashboard() {
           pending += Number(r.total_due);
         }
       } else {
-        expected += Number(f.rent) + Number(f.other_charges);
-        pending += Number(f.rent) + Number(f.other_charges);
+        const fallback = Number(f.rent) + Number(f.maintenance ?? 0) + Number(f.other_charges);
+        expected += fallback;
+        pending += fallback;
       }
     }
     return { expected, collected, pending };
@@ -229,10 +233,12 @@ function FlatCard({ flat, reading, allReadings, monthRate, onChange }: {
   flat: Flat; reading?: Reading; allReadings: Reading[]; monthRate: number; onChange: () => void;
 }) {
   const status: PaymentStatus = reading?.payment_status ?? "pending";
-  const due = reading ? Number(reading.total_due) - Number(reading.amount_paid) : Number(flat.rent) + Number(flat.other_charges);
+  const fallbackDue = Number(flat.rent) + Number(flat.maintenance ?? 0) + Number(flat.other_charges);
+  const due = reading ? Number(reading.total_due) - Number(reading.amount_paid) : fallbackDue;
   const balance = reading ? -(Number(reading.total_due) - Number(reading.amount_paid)) : 0;
   const flatReadings = allReadings.filter((r) => r.flat_id === flat.id);
   const canEditReading = status !== "paid" && status !== "pending_approval";
+  const waNumber = (flat.tenant_whatsapp || "").replace(/\D/g, "");
 
   return (
     <Card className="p-4 hover:shadow-md transition-shadow" style={{ boxShadow: "var(--shadow-card)" }}>
@@ -246,7 +252,27 @@ function FlatCard({ flat, reading, allReadings, monthRate, onChange }: {
             {flat.tenant_name || "(no tenant)"} {flat.tenant_mobile && `• ${flat.tenant_mobile}`}
           </div>
         </div>
-        <FlatDialog flat={flat} onSaved={onChange} />
+        <div className="flex items-center gap-1">
+          {waNumber && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-success"
+              asChild
+              title="WhatsApp tenant"
+            >
+              <a
+                href={`https://wa.me/91${waNumber}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <MessageCircle className="h-4 w-4" />
+              </a>
+            </Button>
+          )}
+          <FlatDialog flat={flat} onSaved={onChange} />
+        </div>
       </div>
 
       <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
@@ -255,23 +281,21 @@ function FlatCard({ flat, reading, allReadings, monthRate, onChange }: {
           <div className="font-medium">{formatINR(Number(flat.rent))}</div>
         </div>
         <div>
+          <div className="text-xs text-muted-foreground">Maintenance</div>
+          <div className="font-medium">{formatINR(Number(flat.maintenance ?? 0))}</div>
+        </div>
+        <div>
           <div className="text-xs text-muted-foreground">Other</div>
           <div className="font-medium">{formatINR(Number(flat.other_charges))}</div>
         </div>
         {reading ? (
-          <>
-            <div>
-              <div className="text-xs text-muted-foreground">Units</div>
-              <div className="font-medium">{Number(reading.units).toFixed(0)} units</div>
-            </div>
-            <div>
-              <div className="text-xs text-muted-foreground">Bill</div>
-              <div className="font-medium">{formatINR(Number(reading.electricity_bill))}</div>
-            </div>
-          </>
+          <div>
+            <div className="text-xs text-muted-foreground">Bill ({Number(reading.units).toFixed(0)}u)</div>
+            <div className="font-medium">{formatINR(Number(reading.electricity_bill))}</div>
+          </div>
         ) : (
-          <div className="col-span-2 text-xs text-muted-foreground italic">
-            No reading for this month yet
+          <div>
+            <div className="text-xs text-muted-foreground italic">No reading yet</div>
           </div>
         )}
       </div>
@@ -311,7 +335,9 @@ function FlatDialog({ flat, onSaved }: { flat?: Flat; onSaved: () => void }) {
   const [tenantUsername, setTenantUsername] = useState(flat?.tenant_mobile ?? "");
   const [tenantPassword, setTenantPassword] = useState("");
   const [rent, setRent] = useState(String(flat?.rent ?? ""));
+  const [maintenance, setMaintenance] = useState(String(flat?.maintenance ?? ""));
   const [other, setOther] = useState(String(flat?.other_charges ?? ""));
+  const [whatsapp, setWhatsapp] = useState(flat?.tenant_whatsapp ?? "");
   const [prev, setPrev] = useState(String(flat?.prev_meter_reading ?? ""));
   const [saving, setSaving] = useState(false);
 
@@ -323,12 +349,15 @@ function FlatDialog({ flat, onSaved }: { flat?: Flat; onSaved: () => void }) {
     setSaving(true);
     try {
       let flatId = flat?.id;
+      const wa = whatsapp.replace(/\D/g, "");
       if (flat) {
         const { error } = await supabase.from("flats").update({
           flat_number: flatNumber,
           tenant_name: tenantName,
           tenant_mobile: tenantUsername.trim().toLowerCase(),
+          tenant_whatsapp: wa,
           rent: Number(rent) || 0,
+          maintenance: Number(maintenance) || 0,
           other_charges: Number(other) || 0,
           prev_meter_reading: Number(prev) || 0,
         }).eq("id", flat.id);
@@ -338,7 +367,9 @@ function FlatDialog({ flat, onSaved }: { flat?: Flat; onSaved: () => void }) {
           flat_number: flatNumber,
           tenant_name: tenantName,
           tenant_mobile: tenantUsername.trim().toLowerCase(),
+          tenant_whatsapp: wa,
           rent: Number(rent) || 0,
+          maintenance: Number(maintenance) || 0,
           other_charges: Number(other) || 0,
           prev_meter_reading: Number(prev) || 0,
         }).select().single();
@@ -412,13 +443,21 @@ function FlatDialog({ flat, onSaved }: { flat?: Flat; onSaved: () => void }) {
             <Label>Tenant Password {flat?.tenant_id && <span className="text-xs text-muted-foreground">(leave empty to keep)</span>}</Label>
             <Input value={tenantPassword} onChange={(e) => setTenantPassword(e.target.value)} type="text" placeholder={flat?.tenant_id ? "•••••" : "Set login password"} />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div>
+            <Label>WhatsApp Mobile (10 digits, no +91)</Label>
+            <Input value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} placeholder="9876543210" inputMode="numeric" />
+          </div>
+          <div className="grid grid-cols-3 gap-3">
             <div>
-              <Label>Monthly Rent (₹)</Label>
+              <Label>Rent (₹)</Label>
               <Input value={rent} onChange={(e) => setRent(e.target.value)} type="number" inputMode="numeric" />
             </div>
             <div>
-              <Label>Other Charges (₹)</Label>
+              <Label>Maintenance (₹)</Label>
+              <Input value={maintenance} onChange={(e) => setMaintenance(e.target.value)} type="number" inputMode="numeric" />
+            </div>
+            <div>
+              <Label>Other (₹)</Label>
               <Input value={other} onChange={(e) => setOther(e.target.value)} type="number" inputMode="numeric" />
             </div>
           </div>
