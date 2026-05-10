@@ -349,12 +349,15 @@ function FlatDialog({ flat, onSaved }: { flat?: Flat; onSaved: () => void }) {
     setSaving(true);
     try {
       let flatId = flat?.id;
+      const wa = whatsapp.replace(/\D/g, "");
       if (flat) {
         const { error } = await supabase.from("flats").update({
           flat_number: flatNumber,
           tenant_name: tenantName,
           tenant_mobile: tenantUsername.trim().toLowerCase(),
+          tenant_whatsapp: wa,
           rent: Number(rent) || 0,
+          maintenance: Number(maintenance) || 0,
           other_charges: Number(other) || 0,
           prev_meter_reading: Number(prev) || 0,
         }).eq("id", flat.id);
@@ -364,7 +367,9 @@ function FlatDialog({ flat, onSaved }: { flat?: Flat; onSaved: () => void }) {
           flat_number: flatNumber,
           tenant_name: tenantName,
           tenant_mobile: tenantUsername.trim().toLowerCase(),
+          tenant_whatsapp: wa,
           rent: Number(rent) || 0,
+          maintenance: Number(maintenance) || 0,
           other_charges: Number(other) || 0,
           prev_meter_reading: Number(prev) || 0,
         }).select().single();
