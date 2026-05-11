@@ -44,11 +44,13 @@ function TenantDashboard() {
   const [readings, setReadings] = useState<Reading[]>([]);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [monthRate, setMonthRate] = useState<number>(0);
+  const [rateSet, setRateSet] = useState<boolean>(false);
   const [loading, setLoading] = useState(true);
   const [currInput, setCurrInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [partialAmount, setPartialAmount] = useState("");
+  const [noRateAmount, setNoRateAmount] = useState("");
   const [paying, setPaying] = useState(false);
 
   const { month, year } = currentMonthYear();
