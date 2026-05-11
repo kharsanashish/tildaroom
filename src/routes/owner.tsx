@@ -41,6 +41,7 @@ interface Flat {
   maintenance: number;
   other_charges: number;
   prev_meter_reading: number;
+  security_deposit: number;
 }
 interface Reading {
   id: string;
@@ -218,13 +219,17 @@ function OwnerDashboard() {
 
 function StatCard({ label, value, variant }: { label: string; value: number; variant: "info" | "success" | "warning" }) {
   const bg =
-    variant === "success" ? "bg-success/10 text-success-foreground border-success/30"
-    : variant === "warning" ? "bg-warning/15 text-warning-foreground border-warning/40"
-    : "bg-info/10 text-info-foreground border-info/30";
+    variant === "success" ? "bg-success/10 border-success/30"
+    : variant === "warning" ? "bg-warning/15 border-warning/40"
+    : "bg-info/10 border-info/30";
+  const valueColor =
+    variant === "success" ? "text-success"
+    : variant === "warning" ? "text-warning"
+    : "text-info";
   return (
     <Card className={`p-3 sm:p-4 border ${bg}`}>
       <div className="text-xs uppercase tracking-wide opacity-70">{label}</div>
-      <div className="text-lg sm:text-2xl font-bold mt-1">{formatINR(value)}</div>
+      <div className={`text-lg sm:text-2xl font-bold mt-1 ${valueColor}`}>{formatINR(value)}</div>
     </Card>
   );
 }
@@ -339,6 +344,7 @@ function FlatDialog({ flat, onSaved }: { flat?: Flat; onSaved: () => void }) {
   const [other, setOther] = useState(String(flat?.other_charges ?? ""));
   const [whatsapp, setWhatsapp] = useState(flat?.tenant_whatsapp ?? "");
   const [prev, setPrev] = useState(String(flat?.prev_meter_reading ?? ""));
+  const [securityDeposit, setSecurityDeposit] = useState(String(flat?.security_deposit ?? ""));
   const [saving, setSaving] = useState(false);
 
   const createTenantFn = useServerFn(createTenant);
@@ -360,6 +366,7 @@ function FlatDialog({ flat, onSaved }: { flat?: Flat; onSaved: () => void }) {
           maintenance: Number(maintenance) || 0,
           other_charges: Number(other) || 0,
           prev_meter_reading: Number(prev) || 0,
+          security_deposit: Number(securityDeposit) || 0,
         }).eq("id", flat.id);
         if (error) throw error;
       } else {
@@ -372,6 +379,7 @@ function FlatDialog({ flat, onSaved }: { flat?: Flat; onSaved: () => void }) {
           maintenance: Number(maintenance) || 0,
           other_charges: Number(other) || 0,
           prev_meter_reading: Number(prev) || 0,
+          security_deposit: Number(securityDeposit) || 0,
         }).select().single();
         if (error) throw error;
         flatId = data.id;
@@ -402,7 +410,12 @@ function FlatDialog({ flat, onSaved }: { flat?: Flat; onSaved: () => void }) {
 
   const remove = async () => {
     if (!flat) return;
-    if (!confirm(`Delete flat ${flat.flat_number}? This removes all readings.`)) return;
+    const sd = Number(flat.security_deposit ?? 0);
+    const q = sd > 0
+      ? `Security deposit of ${sd ? "₹" + sd : ""} returned and all dues clear?`
+      : "All dues clear?";
+    if (!confirm(q)) return;
+    if (!confirm(`Permanently delete flat ${flat.flat_number} and all its readings?`)) return;
     if (flat.tenant_id && confirm("Also delete tenant login account?")) {
       await deleteTenantFn({ data: { tenantId: flat.tenant_id } });
     }
@@ -461,9 +474,15 @@ function FlatDialog({ flat, onSaved }: { flat?: Flat; onSaved: () => void }) {
               <Input value={other} onChange={(e) => setOther(e.target.value)} type="number" inputMode="numeric" />
             </div>
           </div>
-          <div>
-            <Label>Previous Meter Reading</Label>
-            <Input value={prev} onChange={(e) => setPrev(e.target.value)} type="number" inputMode="numeric" />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Previous Meter Reading</Label>
+              <Input value={prev} onChange={(e) => setPrev(e.target.value)} type="number" inputMode="numeric" />
+            </div>
+            <div>
+              <Label>Security Deposit (₹)</Label>
+              <Input value={securityDeposit} onChange={(e) => setSecurityDeposit(e.target.value)} type="number" inputMode="numeric" placeholder="0" />
+            </div>
           </div>
         </div>
         <DialogFooter className="gap-2 sm:gap-2">

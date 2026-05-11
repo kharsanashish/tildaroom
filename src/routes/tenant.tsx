@@ -204,6 +204,15 @@ function TenantDashboard() {
     await submitPayment(amount, "cash", true);
   };
 
+  const payPartialCash = async () => {
+    if (!current) return toast.error("Save reading first");
+    const amount = Number(partialAmount);
+    if (!amount || amount <= 0) return toast.error("Enter valid amount");
+    if (!confirm(`Mark ₹${amount.toFixed(0)} as cash paid (partial)? Owner must approve.`)) return;
+    await submitPayment(amount, "cash", true);
+    setPartialAmount("");
+  };
+
   if (loading) {
     return <div className="flex min-h-screen items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>;
   }
@@ -336,7 +345,10 @@ function TenantDashboard() {
                       onChange={(e) => setPartialAmount(e.target.value)}
                     />
                     <Button onClick={payPartial} disabled={paying || !partialAmount} variant="outline">
-                      Pay
+                      <Smartphone className="h-4 w-4 mr-1" /> UPI
+                    </Button>
+                    <Button onClick={payPartialCash} disabled={paying || !partialAmount} variant="outline">
+                      <Banknote className="h-4 w-4 mr-1" /> Cash
                     </Button>
                   </div>
                   <p className="text-[11px] text-muted-foreground mt-1">
@@ -351,7 +363,7 @@ function TenantDashboard() {
                   className="w-full h-11"
                 >
                   <Banknote className="h-4 w-4 mr-2" />
-                  Mark as Cash Paid (owner approval required)
+                  Mark Full as Cash Paid (owner approval required)
                 </Button>
               </Card>
             )}

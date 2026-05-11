@@ -1,0 +1,1 @@
+ALTER TABLE public.flats ADD COLUMN IF NOT EXISTS security_deposit numeric NOT NULL DEFAULT 0;

@@ -48,6 +48,7 @@ export type Database = {
           other_charges: number
           prev_meter_reading: number
           rent: number
+          security_deposit: number
           tenant_id: string | null
           tenant_mobile: string
           tenant_name: string
@@ -63,6 +64,7 @@ export type Database = {
           other_charges?: number
           prev_meter_reading?: number
           rent?: number
+          security_deposit?: number
           tenant_id?: string | null
           tenant_mobile?: string
           tenant_name?: string
@@ -78,6 +80,7 @@ export type Database = {
           other_charges?: number
           prev_meter_reading?: number
           rent?: number
+          security_deposit?: number
           tenant_id?: string | null
           tenant_mobile?: string
           tenant_name?: string
