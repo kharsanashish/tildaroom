@@ -410,7 +410,12 @@ function FlatDialog({ flat, onSaved }: { flat?: Flat; onSaved: () => void }) {
 
   const remove = async () => {
     if (!flat) return;
-    if (!confirm(`Delete flat ${flat.flat_number}? This removes all readings.`)) return;
+    const sd = Number(flat.security_deposit ?? 0);
+    const q = sd > 0
+      ? `Security deposit of ${sd ? "₹" + sd : ""} returned and all dues clear?`
+      : "All dues clear?";
+    if (!confirm(q)) return;
+    if (!confirm(`Permanently delete flat ${flat.flat_number} and all its readings?`)) return;
     if (flat.tenant_id && confirm("Also delete tenant login account?")) {
       await deleteTenantFn({ data: { tenantId: flat.tenant_id } });
     }
