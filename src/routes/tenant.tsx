@@ -168,14 +168,16 @@ function TenantDashboard() {
   };
 
   const submitPayment = async (amount: number, method: "upi" | "cash", openWhatsApp: boolean) => {
-    if (!current || !flat) return;
+    if (!flat) return;
     setPaying(true);
+    const row = await ensureRow();
+    if (!row) { setPaying(false); return; }
     const { error } = await supabase.from("meter_readings").update({
       amount_paid: amount,
       payment_status: "pending_approval",
       payment_method: method,
       payment_timestamp: new Date().toISOString(),
-    }).eq("id", current.id);
+    }).eq("id", row.id);
     setPaying(false);
     if (error) return toast.error(error.message);
 
@@ -193,6 +195,31 @@ function TenantDashboard() {
         toast.warning("Owner mobile not set in settings");
       }
     }
+  };
+
+  const payNoRateUpi = async () => {
+    const amount = Number(noRateAmount);
+    if (!amount || amount <= 0) return toast.error("Enter valid amount");
+    if (!settings?.owner_upi_id) return toast.error("Owner has not set UPI ID yet");
+    const link = buildUpiLink({
+      pa: settings.owner_upi_id,
+      pn: settings.owner_name || "Owner",
+      am: amount,
+      tn: `Flat ${flat?.flat_number} ${monthLabel(month, year)}`,
+    });
+    window.location.href = link;
+    setTimeout(async () => {
+      await submitPayment(amount, "upi", true);
+      setNoRateAmount("");
+    }, 1500);
+  };
+
+  const payNoRateCash = async () => {
+    const amount = Number(noRateAmount);
+    if (!amount || amount <= 0) return toast.error("Enter valid amount");
+    if (!confirm(`Mark ₹${amount.toFixed(0)} as cash paid? Owner must approve.`)) return;
+    await submitPayment(amount, "cash", true);
+    setNoRateAmount("");
   };
 
   const confirmPayment = async (success: boolean) => {
