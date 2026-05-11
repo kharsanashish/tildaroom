@@ -325,26 +325,31 @@ function TenantDashboard() {
                 <Zap className="h-5 w-5 text-warning" />
                 <h3 className="font-semibold">बिजली रीडिंग / Meter Reading</h3>
               </div>
+              {!rateSet && (
+                <div className="mb-3 rounded-md border border-warning/40 bg-warning/10 p-2 text-xs text-warning-foreground">
+                  Owner has not set this month's unit price yet. Reading is locked. You can still pay rent / dues below.
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label className="text-xs">Previous</Label>
                   <Input value={prevReading} readOnly className="bg-muted" />
                 </div>
                 <div>
-                  <Label className="text-xs">Current {current && "(saved)"}</Label>
+                  <Label className="text-xs">Current {current && current.curr_reading != null && "(saved)"}</Label>
                   <Input
-                    value={current ? String(current.curr_reading) : currInput}
+                    value={current && current.curr_reading != null ? String(current.curr_reading) : currInput}
                     onChange={(e) => setCurrInput(e.target.value)}
                     type="number"
                     inputMode="numeric"
-                    disabled={status === "paid" || status === "pending_approval"}
-                    placeholder="Enter reading"
+                    disabled={!rateSet || status === "paid" || status === "pending_approval"}
+                    placeholder={rateSet ? "Enter reading" : "Locked"}
                   />
                 </div>
               </div>
-              {(status !== "paid" && status !== "pending_approval") && (
+              {(rateSet && status !== "paid" && status !== "pending_approval") && (
                 <Button onClick={saveReading} disabled={saving || !currInput} className="w-full mt-3">
-                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : current ? "Update Reading" : "Save Reading"}
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : (current && current.curr_reading != null) ? "Update Reading" : "Save Reading"}
                 </Button>
               )}
             </Card>
