@@ -377,7 +377,43 @@ function TenantDashboard() {
               </div>
             </Card>
 
-            {current && canPay && (
+            {canPay && !rateSet && (
+              <Card className="p-4 space-y-3">
+                <h3 className="font-semibold text-sm">भुगतान / Payment (Manual amount)</h3>
+                <p className="text-[11px] text-muted-foreground">
+                  Owner has not set this month's unit price. Enter the amount you want to pay (rent / dues). Electricity will be billed once owner sets the rate.
+                </p>
+                <div>
+                  <Label className="text-xs">Amount ₹</Label>
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    placeholder="Enter amount"
+                    value={noRateAmount}
+                    onChange={(e) => setNoRateAmount(e.target.value)}
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button onClick={payNoRateUpi} disabled={paying || !noRateAmount} className="flex-1">
+                    <Smartphone className="h-4 w-4 mr-1" /> Pay via UPI
+                  </Button>
+                  <Button onClick={payNoRateCash} disabled={paying || !noRateAmount} variant="outline" className="flex-1">
+                    <Banknote className="h-4 w-4 mr-1" /> Cash
+                  </Button>
+                </div>
+              </Card>
+            )}
+
+            {canPay && rateSet && !readingSubmitted && (
+              <Card className="p-4 text-center space-y-2 border-dashed">
+                <h3 className="font-semibold text-sm">भुगतान विकल्प / Payment Options</h3>
+                <p className="text-xs text-muted-foreground">
+                  🔒 Submit your current meter reading above to unlock payment options.
+                </p>
+              </Card>
+            )}
+
+            {current && canPay && rateSet && readingSubmitted && (
               <Card className="p-4 space-y-3">
                 <h3 className="font-semibold text-sm">भुगतान विकल्प / Payment Options</h3>
 
