@@ -12,7 +12,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Building2, LogOut, Loader2, Zap, Receipt, Smartphone, CheckCircle2, XCircle, FileDown, History, Wallet, Banknote } from "lucide-react";
 import { toast } from "sonner";
 import { buildUpiLink, currentMonthYear, formatINR, monthLabel, statusColor, statusLabel, type PaymentStatus } from "@/lib/billing";
-import { getRateFor } from "@/lib/rates";
+import { getRateFor, hasRateFor } from "@/lib/rates";
 import { exportReadingPdf } from "@/lib/pdf";
 
 export const Route = createFileRoute("/tenant")({
