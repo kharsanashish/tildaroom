@@ -474,9 +474,15 @@ function FlatDialog({ flat, onSaved }: { flat?: Flat; onSaved: () => void }) {
               <Input value={other} onChange={(e) => setOther(e.target.value)} type="number" inputMode="numeric" />
             </div>
           </div>
-          <div>
-            <Label>Previous Meter Reading</Label>
-            <Input value={prev} onChange={(e) => setPrev(e.target.value)} type="number" inputMode="numeric" />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Previous Meter Reading</Label>
+              <Input value={prev} onChange={(e) => setPrev(e.target.value)} type="number" inputMode="numeric" />
+            </div>
+            <div>
+              <Label>Security Deposit (₹)</Label>
+              <Input value={securityDeposit} onChange={(e) => setSecurityDeposit(e.target.value)} type="number" inputMode="numeric" placeholder="0" />
+            </div>
           </div>
         </div>
         <DialogFooter className="gap-2 sm:gap-2">
