@@ -281,6 +281,7 @@ function TenantDashboard() {
 
   const status: PaymentStatus = current?.payment_status ?? "pending";
   const canPay = status === "pending" || status === "rejected" || status === "partial";
+  const readingSubmitted = !!(current && current.curr_reading != null);
 
   return (
     <div className="min-h-screen bg-background pb-20">
