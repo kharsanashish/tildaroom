@@ -108,6 +108,7 @@ function TenantDashboard() {
 
   const saveReading = async () => {
     if (!flat) return;
+    if (!rateSet) return toast.error("Owner has not set this month's unit price yet");
     const v = Number(currInput);
     if (!v || v < prevReading) return toast.error(`Reading must be ≥ ${prevReading}`);
     setSaving(true);
@@ -131,6 +132,26 @@ function TenantDashboard() {
     setSaving(false);
     if (error) toast.error(error.message);
     else { toast.success("Reading saved"); setCurrInput(""); refresh(); }
+  };
+
+  // Ensure a meter_readings row exists for current month (used for no-rate payments)
+  const ensureRow = async (): Promise<Reading | null> => {
+    if (current) return current;
+    if (!flat) return null;
+    const baseTotal = rent + maintenance + other - openingBalance;
+    const payload = {
+      flat_id: flat.id, month, year,
+      prev_reading: prevReading, curr_reading: null,
+      units: 0, rate_per_unit: 0, electricity_bill: 0,
+      rent, maintenance, other_charges: other,
+      opening_balance: openingBalance,
+      total_due: baseTotal,
+      amount_paid: 0,
+      payment_status: "pending" as const,
+    };
+    const { data, error } = await supabase.from("meter_readings").insert(payload).select("*").single();
+    if (error) { toast.error(error.message); return null; }
+    return data as Reading;
   };
 
   const handlePay = () => {
