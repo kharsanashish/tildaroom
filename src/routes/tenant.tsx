@@ -63,6 +63,7 @@ function TenantDashboard() {
     setSettings(s as Settings);
     const fallback = Number((s as Settings)?.electricity_rate_per_unit ?? 0);
     setMonthRate(await getRateFor(month, year, fallback));
+    setRateSet(await hasRateFor(month, year));
     if (f) {
       const { data: r } = await supabase.from("meter_readings").select("*").eq("flat_id", (f as Flat).id);
       setReadings((r as Reading[]) ?? []);
