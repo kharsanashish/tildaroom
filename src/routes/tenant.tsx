@@ -204,6 +204,15 @@ function TenantDashboard() {
     await submitPayment(amount, "cash", true);
   };
 
+  const payPartialCash = async () => {
+    if (!current) return toast.error("Save reading first");
+    const amount = Number(partialAmount);
+    if (!amount || amount <= 0) return toast.error("Enter valid amount");
+    if (!confirm(`Mark ₹${amount.toFixed(0)} as cash paid (partial)? Owner must approve.`)) return;
+    await submitPayment(amount, "cash", true);
+    setPartialAmount("");
+  };
+
   if (loading) {
     return <div className="flex min-h-screen items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>;
   }
