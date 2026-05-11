@@ -12,7 +12,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Building2, LogOut, Loader2, Zap, Receipt, Smartphone, CheckCircle2, XCircle, FileDown, History, Wallet, Banknote } from "lucide-react";
 import { toast } from "sonner";
 import { buildUpiLink, currentMonthYear, formatINR, monthLabel, statusColor, statusLabel, type PaymentStatus } from "@/lib/billing";
-import { getRateFor } from "@/lib/rates";
+import { getRateFor, hasRateFor } from "@/lib/rates";
 import { exportReadingPdf } from "@/lib/pdf";
 
 export const Route = createFileRoute("/tenant")({
@@ -44,11 +44,13 @@ function TenantDashboard() {
   const [readings, setReadings] = useState<Reading[]>([]);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [monthRate, setMonthRate] = useState<number>(0);
+  const [rateSet, setRateSet] = useState<boolean>(false);
   const [loading, setLoading] = useState(true);
   const [currInput, setCurrInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [partialAmount, setPartialAmount] = useState("");
+  const [noRateAmount, setNoRateAmount] = useState("");
   const [paying, setPaying] = useState(false);
 
   const { month, year } = currentMonthYear();
@@ -61,6 +63,7 @@ function TenantDashboard() {
     setSettings(s as Settings);
     const fallback = Number((s as Settings)?.electricity_rate_per_unit ?? 0);
     setMonthRate(await getRateFor(month, year, fallback));
+    setRateSet(await hasRateFor(month, year));
     if (f) {
       const { data: r } = await supabase.from("meter_readings").select("*").eq("flat_id", (f as Flat).id);
       setReadings((r as Reading[]) ?? []);
@@ -105,6 +108,7 @@ function TenantDashboard() {
 
   const saveReading = async () => {
     if (!flat) return;
+    if (!rateSet) return toast.error("Owner has not set this month's unit price yet");
     const v = Number(currInput);
     if (!v || v < prevReading) return toast.error(`Reading must be ≥ ${prevReading}`);
     setSaving(true);
@@ -130,6 +134,26 @@ function TenantDashboard() {
     else { toast.success("Reading saved"); setCurrInput(""); refresh(); }
   };
 
+  // Ensure a meter_readings row exists for current month (used for no-rate payments)
+  const ensureRow = async (): Promise<Reading | null> => {
+    if (current) return current;
+    if (!flat) return null;
+    const baseTotal = rent + maintenance + other - openingBalance;
+    const payload = {
+      flat_id: flat.id, month, year,
+      prev_reading: prevReading, curr_reading: null,
+      units: 0, rate_per_unit: 0, electricity_bill: 0,
+      rent, maintenance, other_charges: other,
+      opening_balance: openingBalance,
+      total_due: baseTotal,
+      amount_paid: 0,
+      payment_status: "pending" as const,
+    };
+    const { data, error } = await supabase.from("meter_readings").insert(payload).select("*").single();
+    if (error) { toast.error(error.message); return null; }
+    return data as Reading;
+  };
+
   const handlePay = () => {
     if (!current) return toast.error("Save reading first");
     if (!settings?.owner_upi_id) return toast.error("Owner has not set UPI ID yet");
@@ -144,14 +168,16 @@ function TenantDashboard() {
   };
 
   const submitPayment = async (amount: number, method: "upi" | "cash", openWhatsApp: boolean) => {
-    if (!current || !flat) return;
+    if (!flat) return;
     setPaying(true);
+    const row = await ensureRow();
+    if (!row) { setPaying(false); return; }
     const { error } = await supabase.from("meter_readings").update({
       amount_paid: amount,
       payment_status: "pending_approval",
       payment_method: method,
       payment_timestamp: new Date().toISOString(),
-    }).eq("id", current.id);
+    }).eq("id", row.id);
     setPaying(false);
     if (error) return toast.error(error.message);
 
@@ -169,6 +195,31 @@ function TenantDashboard() {
         toast.warning("Owner mobile not set in settings");
       }
     }
+  };
+
+  const payNoRateUpi = async () => {
+    const amount = Number(noRateAmount);
+    if (!amount || amount <= 0) return toast.error("Enter valid amount");
+    if (!settings?.owner_upi_id) return toast.error("Owner has not set UPI ID yet");
+    const link = buildUpiLink({
+      pa: settings.owner_upi_id,
+      pn: settings.owner_name || "Owner",
+      am: amount,
+      tn: `Flat ${flat?.flat_number} ${monthLabel(month, year)}`,
+    });
+    window.location.href = link;
+    setTimeout(async () => {
+      await submitPayment(amount, "upi", true);
+      setNoRateAmount("");
+    }, 1500);
+  };
+
+  const payNoRateCash = async () => {
+    const amount = Number(noRateAmount);
+    if (!amount || amount <= 0) return toast.error("Enter valid amount");
+    if (!confirm(`Mark ₹${amount.toFixed(0)} as cash paid? Owner must approve.`)) return;
+    await submitPayment(amount, "cash", true);
+    setNoRateAmount("");
   };
 
   const confirmPayment = async (success: boolean) => {
@@ -230,6 +281,7 @@ function TenantDashboard() {
 
   const status: PaymentStatus = current?.payment_status ?? "pending";
   const canPay = status === "pending" || status === "rejected" || status === "partial";
+  const readingSubmitted = !!(current && current.curr_reading != null);
 
   return (
     <div className="min-h-screen bg-background pb-20">
@@ -273,26 +325,31 @@ function TenantDashboard() {
                 <Zap className="h-5 w-5 text-warning" />
                 <h3 className="font-semibold">बिजली रीडिंग / Meter Reading</h3>
               </div>
+              {!rateSet && (
+                <div className="mb-3 rounded-md border border-warning/40 bg-warning/10 p-2 text-xs text-warning-foreground">
+                  Owner has not set this month's unit price yet. Reading is locked. You can still pay rent / dues below.
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <Label className="text-xs">Previous</Label>
                   <Input value={prevReading} readOnly className="bg-muted" />
                 </div>
                 <div>
-                  <Label className="text-xs">Current {current && "(saved)"}</Label>
+                  <Label className="text-xs">Current {current && current.curr_reading != null && "(saved)"}</Label>
                   <Input
-                    value={current ? String(current.curr_reading) : currInput}
+                    value={current && current.curr_reading != null ? String(current.curr_reading) : currInput}
                     onChange={(e) => setCurrInput(e.target.value)}
                     type="number"
                     inputMode="numeric"
-                    disabled={status === "paid" || status === "pending_approval"}
-                    placeholder="Enter reading"
+                    disabled={!rateSet || status === "paid" || status === "pending_approval"}
+                    placeholder={rateSet ? "Enter reading" : "Locked"}
                   />
                 </div>
               </div>
-              {(status !== "paid" && status !== "pending_approval") && (
+              {(rateSet && status !== "paid" && status !== "pending_approval") && (
                 <Button onClick={saveReading} disabled={saving || !currInput} className="w-full mt-3">
-                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : current ? "Update Reading" : "Save Reading"}
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : (current && current.curr_reading != null) ? "Update Reading" : "Save Reading"}
                 </Button>
               )}
             </Card>
@@ -320,7 +377,43 @@ function TenantDashboard() {
               </div>
             </Card>
 
-            {current && canPay && (
+            {canPay && !rateSet && (
+              <Card className="p-4 space-y-3">
+                <h3 className="font-semibold text-sm">भुगतान / Payment (Manual amount)</h3>
+                <p className="text-[11px] text-muted-foreground">
+                  Owner has not set this month's unit price. Enter the amount you want to pay (rent / dues). Electricity will be billed once owner sets the rate.
+                </p>
+                <div>
+                  <Label className="text-xs">Amount ₹</Label>
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    placeholder="Enter amount"
+                    value={noRateAmount}
+                    onChange={(e) => setNoRateAmount(e.target.value)}
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button onClick={payNoRateUpi} disabled={paying || !noRateAmount} className="flex-1">
+                    <Smartphone className="h-4 w-4 mr-1" /> Pay via UPI
+                  </Button>
+                  <Button onClick={payNoRateCash} disabled={paying || !noRateAmount} variant="outline" className="flex-1">
+                    <Banknote className="h-4 w-4 mr-1" /> Cash
+                  </Button>
+                </div>
+              </Card>
+            )}
+
+            {canPay && rateSet && !readingSubmitted && (
+              <Card className="p-4 text-center space-y-2 border-dashed">
+                <h3 className="font-semibold text-sm">भुगतान विकल्प / Payment Options</h3>
+                <p className="text-xs text-muted-foreground">
+                  🔒 Submit your current meter reading above to unlock payment options.
+                </p>
+              </Card>
+            )}
+
+            {current && canPay && rateSet && readingSubmitted && (
               <Card className="p-4 space-y-3">
                 <h3 className="font-semibold text-sm">भुगतान विकल्प / Payment Options</h3>
 
