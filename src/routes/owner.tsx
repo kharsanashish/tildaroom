@@ -41,6 +41,7 @@ interface Flat {
   maintenance: number;
   other_charges: number;
   prev_meter_reading: number;
+  security_deposit: number;
 }
 interface Reading {
   id: string;
