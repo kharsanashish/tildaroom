@@ -345,7 +345,10 @@ function TenantDashboard() {
                       onChange={(e) => setPartialAmount(e.target.value)}
                     />
                     <Button onClick={payPartial} disabled={paying || !partialAmount} variant="outline">
-                      Pay
+                      <Smartphone className="h-4 w-4 mr-1" /> UPI
+                    </Button>
+                    <Button onClick={payPartialCash} disabled={paying || !partialAmount} variant="outline">
+                      <Banknote className="h-4 w-4 mr-1" /> Cash
                     </Button>
                   </div>
                   <p className="text-[11px] text-muted-foreground mt-1">
@@ -360,7 +363,7 @@ function TenantDashboard() {
                   className="w-full h-11"
                 >
                   <Banknote className="h-4 w-4 mr-2" />
-                  Mark as Cash Paid (owner approval required)
+                  Mark Full as Cash Paid (owner approval required)
                 </Button>
               </Card>
             )}
