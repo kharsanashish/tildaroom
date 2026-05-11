@@ -366,6 +366,7 @@ function FlatDialog({ flat, onSaved }: { flat?: Flat; onSaved: () => void }) {
           maintenance: Number(maintenance) || 0,
           other_charges: Number(other) || 0,
           prev_meter_reading: Number(prev) || 0,
+          security_deposit: Number(securityDeposit) || 0,
         }).eq("id", flat.id);
         if (error) throw error;
       } else {
@@ -378,6 +379,7 @@ function FlatDialog({ flat, onSaved }: { flat?: Flat; onSaved: () => void }) {
           maintenance: Number(maintenance) || 0,
           other_charges: Number(other) || 0,
           prev_meter_reading: Number(prev) || 0,
+          security_deposit: Number(securityDeposit) || 0,
         }).select().single();
         if (error) throw error;
         flatId = data.id;
