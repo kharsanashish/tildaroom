@@ -9,3 +9,13 @@ export async function getRateFor(month: number, year: number, fallback: number):
     .maybeSingle();
   return data ? Number(data.rate_per_unit) : fallback;
 }
+
+export async function hasRateFor(month: number, year: number): Promise<boolean> {
+  const { data } = await supabase
+    .from("electricity_rates")
+    .select("id")
+    .eq("month", month)
+    .eq("year", year)
+    .maybeSingle();
+  return !!data;
+}
