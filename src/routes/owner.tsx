@@ -503,8 +503,7 @@ function FlatDialog({ flat, onSaved }: { flat?: Flat; onSaved: () => void }) {
 
 function SettingsDialog({ settings, onSaved }: { settings: Settings; onSaved: () => void }) {
   const [open, setOpen] = useState(false);
-  const [rate, setRate] = useState(String(settings?.electricity_rate_per_unit ?? "8"));
-  const [upi, setUpi] = useState(settings?.owner_upi_id ?? "");
+const [upi, setUpi] = useState(settings?.owner_upi_id ?? "");
   const [name, setName] = useState(settings?.owner_name ?? "");
   const [mobile, setMobile] = useState(settings?.owner_mobile ?? "");
   const [saving, setSaving] = useState(false);
@@ -542,7 +541,6 @@ function SettingsDialog({ settings, onSaved }: { settings: Settings; onSaved: ()
             <Label>PhonePe UPI ID</Label>
             <Input value={upi} onChange={(e) => setUpi(e.target.value)} placeholder="name@ybl" />
           </div>
-          
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
