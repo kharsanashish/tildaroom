@@ -211,7 +211,7 @@ function OwnerDashboard() {
         </Tabs>
       </main>
 
-      {settings && <RatePrompt defaultRate={settings.electricity_rate_per_unit} />}
+     
       <JanuaryReview onDone={refresh} />
     </div>
   );
