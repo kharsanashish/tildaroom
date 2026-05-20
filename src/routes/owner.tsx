@@ -542,6 +542,10 @@ function SettingsDialog({ settings, onSaved }: { settings: Settings; onSaved: ()
             <Label>PhonePe UPI ID</Label>
             <Input value={upi} onChange={(e) => setUpi(e.target.value)} placeholder="name@ybl" />
           </div>
+          <div>
+            <Label>Default Electricity Rate (₹ / unit)</Label>
+            <Input value={rate} onChange={(e) => setRate(e.target.value)} type="number" inputMode="decimal" />
+          </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
