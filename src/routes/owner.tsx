@@ -211,7 +211,7 @@ function OwnerDashboard() {
         </Tabs>
       </main>
 
-     
+      {settings && <RatePrompt defaultRate={settings.electricity_rate_per_unit} />}
       <JanuaryReview onDone={refresh} />
     </div>
   );
@@ -503,7 +503,8 @@ function FlatDialog({ flat, onSaved }: { flat?: Flat; onSaved: () => void }) {
 
 function SettingsDialog({ settings, onSaved }: { settings: Settings; onSaved: () => void }) {
   const [open, setOpen] = useState(false);
-const [upi, setUpi] = useState(settings?.owner_upi_id ?? "");
+  const [rate, setRate] = useState(String(settings?.electricity_rate_per_unit ?? "8"));
+  const [upi, setUpi] = useState(settings?.owner_upi_id ?? "");
   const [name, setName] = useState(settings?.owner_name ?? "");
   const [mobile, setMobile] = useState(settings?.owner_mobile ?? "");
   const [saving, setSaving] = useState(false);
@@ -540,6 +541,10 @@ const [upi, setUpi] = useState(settings?.owner_upi_id ?? "");
           <div>
             <Label>PhonePe UPI ID</Label>
             <Input value={upi} onChange={(e) => setUpi(e.target.value)} placeholder="name@ybl" />
+          </div>
+          <div>
+            <Label>Default Electricity Rate (₹ / unit)</Label>
+            <Input value={rate} onChange={(e) => setRate(e.target.value)} type="number" inputMode="decimal" />
           </div>
         </div>
         <DialogFooter>
