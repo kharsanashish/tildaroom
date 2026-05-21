@@ -503,7 +503,6 @@ function FlatDialog({ flat, onSaved }: { flat?: Flat; onSaved: () => void }) {
 
 function SettingsDialog({ settings, onSaved }: { settings: Settings; onSaved: () => void }) {
   const [open, setOpen] = useState(false);
-  const [rate, setRate] = useState(String(settings?.electricity_rate_per_unit ?? "8"));
   const [upi, setUpi] = useState(settings?.owner_upi_id ?? "");
   const [name, setName] = useState(settings?.owner_name ?? "");
   const [mobile, setMobile] = useState(settings?.owner_mobile ?? "");
@@ -512,7 +511,6 @@ function SettingsDialog({ settings, onSaved }: { settings: Settings; onSaved: ()
   const save = async () => {
     setSaving(true);
     const { error } = await supabase.from("settings").update({
-      electricity_rate_per_unit: Number(rate) || 0,
       owner_upi_id: upi.trim(),
       owner_name: name.trim(),
       owner_mobile: mobile.replace(/\D/g, ""),
@@ -541,10 +539,6 @@ function SettingsDialog({ settings, onSaved }: { settings: Settings; onSaved: ()
           <div>
             <Label>PhonePe UPI ID</Label>
             <Input value={upi} onChange={(e) => setUpi(e.target.value)} placeholder="name@ybl" />
-          </div>
-          <div>
-            <Label>Default Electricity Rate (₹ / unit)</Label>
-            <Input value={rate} onChange={(e) => setRate(e.target.value)} type="number" inputMode="decimal" />
           </div>
         </div>
         <DialogFooter>
