@@ -1,5 +1,5 @@
 import jsPDF from "jspdf";
-import { formatINR, monthLabel, statusLabel, type PaymentStatus } from "./billing";
+import { monthLabel, statusLabel, type PaymentStatus } from "./billing";
 
 interface ReadingPdf {
   month: number;
@@ -20,6 +20,11 @@ interface ReadingPdf {
   payment_timestamp?: string | null;
 }
 
+// Simple fallback formatter replacing standard currency rules with explicit "Rs." prefixing
+function formatRs(n: number) {
+  return `Rs. ${Math.round(n).toLocaleString("en-IN")}`;
+}
+
 export function exportReadingPdf(opts: {
   reading: ReadingPdf;
   flatNumber: string;
@@ -28,8 +33,7 @@ export function exportReadingPdf(opts: {
 }) {
   const { reading: r, flatNumber, tenantName, ownerName } = opts;
   
-  // Create a custom 80mm width page size typical for professional thermal printer receipts
-  // [width, height] in mm. 180mm height provides ample room for the breakdown.
+  // Custom 80mm roll size optimized for professional thermal layout designs
   const doc = new jsPDF({
     unit: "mm",
     format: [80, 180],
@@ -38,15 +42,15 @@ export function exportReadingPdf(opts: {
   const W = doc.internal.pageSize.getWidth(); // 80mm
   let y = 10;
 
-  // Helper for drawing clean dashed separation lines
+  // Helper for drawing sharp dashed dividers
   const drawDashedLine = (currentY: number) => {
     doc.setDrawColor(150);
     doc.setLineDashPattern([1, 1], 0);
     doc.line(6, currentY, W - 6, currentY);
-    doc.setLineDashPattern([], 0); // Reset line pattern
+    doc.setLineDashPattern([], 0); // Reset
   };
 
-  // Helper for structured key-value alignment (left aligned label, right aligned value)
+  // Helper for left-aligned labels with right-aligned values
   const rowL = (label: string, value: string, isBold = false) => {
     doc.setFont("helvetica", isBold ? "bold" : "normal");
     doc.text(label, 6, y);
@@ -63,8 +67,16 @@ export function exportReadingPdf(opts: {
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   doc.setTextColor(80);
+  
+  // 1. Room/Flat Identification
   doc.text(`Room/Flat: ${flatNumber}`, W / 2, y, { align: "center" });
   y += 4;
+  
+  // 2. Tenant profile information nested securely between Room/Flat and Period row
+  doc.text(`Tenant: ${tenantName}`, W / 2, y, { align: "center" });
+  y += 4;
+
+  // 3. Billing Period timeline tracking reference row
   doc.text(`Period: ${monthLabel(r.month, r.year)}`, W / 2, y, { align: "center" });
   y += 6;
 
@@ -72,9 +84,8 @@ export function exportReadingPdf(opts: {
   drawDashedLine(y);
   y += 5;
 
-  // --- TENANT & INVOICE INFO ---
+  // --- ADDITIONAL BILL RUN INFORMATION ---
   doc.setFontSize(8);
-  rowL("Tenant:", tenantName, true);
   if (r.payment_timestamp) {
     const dateStr = new Date(r.payment_timestamp).toLocaleDateString("en-IN");
     rowL("Date:", dateStr);
@@ -85,7 +96,7 @@ export function exportReadingPdf(opts: {
   drawDashedLine(y);
   y += 5;
 
-  // --- ELECTRICITY METER SUB-TABLE ---
+  // --- METRIC READINGS GRID ---
   if (r.curr_reading !== null) {
     doc.setFont("helvetica", "bold");
     doc.text("Electricity Metrics", 6, y);
@@ -95,14 +106,14 @@ export function exportReadingPdf(opts: {
     rowL(`  Current Reading:`, String(r.curr_reading));
     rowL(`  Previous Reading:`, String(r.prev_reading));
     rowL(`  Units Consumed:`, `${r.units} units`);
-    rowL(`  Rate per Unit:`, `${formatINR(r.rate_per_unit)}/unit`);
+    rowL(`  Rate per Unit:`, `${formatRs(r.rate_per_unit)}/unit`);
     
     y += 2;
     drawDashedLine(y);
     y += 5;
   }
 
-  // --- ITEMISED BILL BREAKDOWN ---
+  // --- ITEMIZED RECEIPT DATA ---
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9);
   doc.text("Particulars", 6, y);
@@ -110,21 +121,21 @@ export function exportReadingPdf(opts: {
   y += 4.5;
 
   doc.setFontSize(8);
-  rowL("Rent Charges", formatINR(Number(r.rent)));
-  rowL("Electricity Bill", formatINR(Number(r.electricity_bill)));
+  rowL("Rent Charges", formatRs(Number(r.rent)));
+  rowL("Electricity Bill", formatRs(Number(r.electricity_bill)));
   
   if (Number(r.maintenance ?? 0) > 0) {
-    rowL("Maintenance", formatINR(Number(r.maintenance ?? 0)));
+    rowL("Maintenance", formatRs(Number(r.maintenance ?? 0)));
   }
   if (Number(r.other_charges) > 0) {
-    rowL("Other Charges", formatINR(Number(r.other_charges)));
+    rowL("Other Charges", formatRs(Number(r.other_charges)));
   }
   
   if (Number(r.opening_balance) !== 0) {
     const isAdvance = Number(r.opening_balance) > 0;
     rowL(
       isAdvance ? "Prev Month Advance" : "Prev Arrears / Balance",
-      `${isAdvance ? "-" : "+"} ${formatINR(Math.abs(Number(r.opening_balance)))}`
+      `${isAdvance ? "-" : "+"} ${formatRs(Math.abs(Number(r.opening_balance)))}`
     );
   }
 
@@ -132,15 +143,15 @@ export function exportReadingPdf(opts: {
   drawDashedLine(y);
   y += 5;
 
-  // --- SUMMARY TOTALS ---
+  // --- BALANCES & SUMMARY ---
   doc.setFontSize(9);
-  rowL("Total Amount Due:", formatINR(Number(r.total_due)), true);
-  rowL("Total Amount Paid:", formatINR(Number(r.amount_paid)));
+  rowL("Total Amount Due:", formatRs(Number(r.total_due)), true);
+  rowL("Total Amount Paid:", formatRs(Number(r.amount_paid)));
   
   const balance = Number(r.total_due) - Number(r.amount_paid);
-  rowL("Remaining Balance:", formatINR(balance), true);
+  rowL("Remaining Balance:", formatRs(balance), true);
 
-  // --- FOOTER PAYMENT DETAILS ---
+  // --- TRANSACTION RECORD FOOTER ---
   if (r.payment_method) {
     y += 2;
     drawDashedLine(y);
@@ -153,8 +164,8 @@ export function exportReadingPdf(opts: {
   doc.setFont("helvetica", "italic");
   doc.setFontSize(8);
   doc.setTextColor(100);
-  doc.text("Thank you for your stay!", W / 2, y, { align: "center" });
+  doc.text("Thank you for payment!", W / 2, y, { align: "center" });
 
-  // Save/Download file execution
+  // Download Trigger
   doc.save(`Invoice_${flatNumber}_${r.month}_${r.year}.pdf`);
 }
