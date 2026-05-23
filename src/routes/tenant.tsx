@@ -35,7 +35,7 @@ interface Reading {
   payment_method: string | null; payment_timestamp: string | null;
 }
 interface Settings {
-  electricity_rate_per_unit: number; owner_upi_id: string; owner_name: string; owner_mobile: string;
+  owner_upi_id: string; owner_name: string; owner_mobile: string;
 }
 
 function TenantDashboard() {
@@ -61,8 +61,7 @@ function TenantDashboard() {
     setFlat(f as Flat | null);
     const { data: s } = await supabase.from("settings").select("*").eq("id", 1).single();
     setSettings(s as Settings);
-    const fallback = Number((s as Settings)?.electricity_rate_per_unit ?? 0);
-    setMonthRate(await getRateFor(month, year, fallback));
+    setMonthRate(await getRateFor(month, year, 0));
     setRateSet(await hasRateFor(month, year));
     if (f) {
       const { data: r } = await supabase.from("meter_readings").select("*").eq("flat_id", (f as Flat).id);
@@ -157,10 +156,12 @@ function TenantDashboard() {
   const handlePay = () => {
     if (!current) return toast.error("Save reading first");
     if (!settings?.owner_upi_id) return toast.error("Owner has not set UPI ID yet");
+    const payable = Number(current.total_due) - Number(current.amount_paid);
+    if (!payable || payable <= 0) return toast.error("Nothing to pay — amount is zero");
     const link = buildUpiLink({
       pa: settings.owner_upi_id,
       pn: settings.owner_name || "Owner",
-      am: Number(current.total_due) - Number(current.amount_paid),
+      am: payable,
       tn: `Flat ${flat?.flat_number} ${monthLabel(month, year)} Rent`,
     });
     window.location.href = link;
@@ -227,6 +228,7 @@ function TenantDashboard() {
     if (!success) return toast.info("Payment kept as pending");
     if (!current) return;
     const amount = Number(current.total_due) - Number(current.amount_paid);
+    if (!amount || amount <= 0) return toast.error("Nothing to pay — amount is zero");
     await submitPayment(amount, "upi", true);
   };
 
@@ -251,6 +253,7 @@ function TenantDashboard() {
   const payCash = async () => {
     if (!current) return toast.error("Save reading first");
     const amount = Number(current.total_due) - Number(current.amount_paid);
+    if (!amount || amount <= 0) return toast.error("Nothing to pay — amount is zero");
     if (!confirm(`Mark ₹${amount.toFixed(0)} as cash paid? Owner must approve.`)) return;
     await submitPayment(amount, "cash", true);
   };
