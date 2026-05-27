@@ -222,3 +222,97 @@ export function exportReadingPdf(opts: {
 
   doc.save(`Receipt_Flat${flatNumber}_${monthLabel(r.month, r.year).replace(" ", "_")}.pdf`);
 }
+
+export interface FlatSummaryRow {
+  flatNumber: string;
+  tenantName: string;
+  totalDue: number;
+  amountPaid: number;
+  paymentStatus: PaymentStatus;
+}
+
+export function exportMonthlySummaryPdf(opts: {
+  month: number;
+  year: number;
+  ownerName?: string;
+  ownerMobile?: string;
+  rows: FlatSummaryRow[];
+}) {
+  const { month, year, ownerName, ownerMobile, rows } = opts;
+
+  const lineH = 7;
+  const tableTop = 55;
+  const rowH = 8;
+  const estimatedH = tableTop + rows.length * rowH + 60;
+  const doc = new jsPDF({ unit: "mm", format: [210, Math.max(estimatedH, 120)] });
+  const W = 210;
+  let y = 12;
+
+  const center = (text: string, size: number, bold = false, color = 0) => {
+    doc.setFontSize(size); doc.setFont("helvetica", bold ? "bold" : "normal"); doc.setTextColor(color);
+    doc.text(text, W / 2, y, { align: "center" }); y += size * 0.42 + 1;
+  };
+  const solidLine = () => {
+    doc.setDrawColor(0); doc.setLineWidth(0.4); doc.setLineDashPattern([], 0);
+    doc.line(8, y, W - 8, y); y += 4;
+  };
+
+  y += 1;
+  center(ownerName?.toUpperCase() || "RENT MANAGEMENT", 14, true);
+  if (ownerMobile) { center(`Mob: ${ownerMobile}`, 8, false, 80); }
+  y += 1;
+  solidLine();
+  center("MONTHLY COLLECTION SUMMARY", 11, true);
+  center(monthLabel(month, year), 10, false, 60);
+  y += 1;
+  solidLine();
+
+  // Table header
+  const cols = { flat: 10, name: 40, due: 105, paid: 135, bal: 162, status: 185 };
+  doc.setFontSize(8); doc.setFont("helvetica", "bold"); doc.setTextColor(0);
+  doc.text("Flat", cols.flat, y);
+  doc.text("Tenant", cols.name, y);
+  doc.text("Total Due", cols.due, y, { align: "right" });
+  doc.text("Paid", cols.paid, y, { align: "right" });
+  doc.text("Balance", cols.bal, y, { align: "right" });
+  doc.text("Status", cols.status, y);
+  y += 2;
+  solidLine();
+  y -= 2;
+
+  // Table rows
+  let totalDue = 0, totalPaid = 0;
+  for (const r of rows) {
+    const bal = Math.max(0, r.totalDue - r.amountPaid);
+    totalDue += r.totalDue; totalPaid += r.amountPaid;
+    doc.setFontSize(7.5); doc.setFont("helvetica", "normal"); doc.setTextColor(0);
+    doc.text(`${r.flatNumber}`, cols.flat, y);
+    doc.text(r.tenantName || "—", cols.name, y);
+    doc.text(rs(r.totalDue), cols.due, y, { align: "right" });
+    doc.text(rs(r.amountPaid), cols.paid, y, { align: "right" });
+    if (bal > 0) { doc.setTextColor(180, 30, 30); }
+    doc.text(rs(bal), cols.bal, y, { align: "right" });
+    doc.setTextColor(0);
+    const sl = statusLabel(r.paymentStatus);
+    doc.text(sl, cols.status, y);
+    y += rowH;
+  }
+
+  y += 2;
+  solidLine();
+  doc.setFontSize(9); doc.setFont("helvetica", "bold"); doc.setTextColor(0);
+  doc.text("TOTALS", cols.flat, y);
+  doc.text(rs(totalDue), cols.due, y, { align: "right" });
+  doc.text(rs(totalPaid), cols.paid, y, { align: "right" });
+  const totalBal = Math.max(0, totalDue - totalPaid);
+  if (totalBal > 0) { doc.setTextColor(180, 30, 30); }
+  doc.text(rs(totalBal), cols.bal, y, { align: "right" });
+  doc.setTextColor(0);
+  y += lineH + 2;
+  solidLine();
+
+  doc.setFontSize(7); doc.setFont("helvetica", "italic"); doc.setTextColor(100);
+  doc.text(`Generated on ${today()} • TildaRoom`, W / 2, y, { align: "center" });
+
+  doc.save(`Summary_${monthLabel(month, year).replace(" ", "_")}.pdf`);
+}
