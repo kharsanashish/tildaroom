@@ -1,14 +1,13 @@
+import { useEffect } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
-  Outlet,
-  Link,
-  createRootRouteWithContext,
-  useRouter,
-  HeadContent,
-  Scripts,
+  Outlet, Link, createRootRouteWithContext,
+  useRouter, HeadContent, Scripts,
 } from "@tanstack/react-router";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider } from "@/lib/auth-context";
+import { registerSW } from "@/lib/push";
+import { PWAInstallBanner } from "@/components/pwa-install-banner";
 
 import appCss from "../styles.css?url";
 
@@ -22,10 +21,7 @@ function NotFoundComponent() {
           The page you're looking for doesn't exist.
         </p>
         <div className="mt-6">
-          <Link
-            to="/"
-            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
-          >
+          <Link to="/" className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90">
             Go home
           </Link>
         </div>
@@ -43,10 +39,8 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
         <h1 className="text-xl font-semibold text-foreground">Something went wrong</h1>
         <p className="mt-2 text-sm text-muted-foreground">{error.message}</p>
         <div className="mt-6 flex justify-center gap-2">
-          <button
-            onClick={() => { router.invalidate(); reset(); }}
-            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
-          >
+          <button onClick={() => { router.invalidate(); reset(); }}
+            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90">
             Try again
           </button>
           <a href="/" className="rounded-md border border-input bg-background px-4 py-2 text-sm font-medium hover:bg-accent">Home</a>
@@ -61,19 +55,24 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Rent Manager" },
+      { title: "TildaRoom" },
       { name: "description", content: "Manage flats, electricity bills and rent collection with UPI." },
-      { name: "theme-color", content: "#4f46e5" },
-      { property: "og:title", content: "Rent Manager" },
-      { name: "twitter:title", content: "Rent Manager" },
+      { name: "theme-color", content: "#6d28d9" },
+      // PWA
+      { name: "mobile-web-app-capable", content: "yes" },
+      { name: "apple-mobile-web-app-capable", content: "yes" },
+      { name: "apple-mobile-web-app-status-bar-style", content: "default" },
+      { name: "apple-mobile-web-app-title", content: "TildaRoom" },
+      // OG
+      { property: "og:title", content: "TildaRoom" },
       { property: "og:description", content: "Manage flats, electricity bills and rent collection with UPI." },
-      { name: "twitter:description", content: "Manage flats, electricity bills and rent collection with UPI." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/193e6763-30f7-43c4-8b8b-7a42dfac3e83/id-preview-adde0f5d--1c40be32-a63d-43db-ac4a-a82909d84d4b.lovable.app-1778163873988.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/193e6763-30f7-43c4-8b8b-7a42dfac3e83/id-preview-adde0f5d--1c40be32-a63d-43db-ac4a-a82909d84d4b.lovable.app-1778163873988.png" },
-      { name: "twitter:card", content: "summary_large_image" },
       { property: "og:type", content: "website" },
     ],
-    links: [{ rel: "stylesheet", href: appCss }],
+    links: [
+      { rel: "stylesheet", href: appCss },
+      { rel: "manifest", href: "/manifest.json" },
+      { rel: "apple-touch-icon", href: "/favicon.ico" },
+    ],
   }),
   shellComponent: RootShell,
   component: RootComponent,
@@ -95,11 +94,16 @@ function RootShell({ children }: { children: React.ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+
+  // Register service worker once on app load
+  useEffect(() => { registerSW(); }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <Outlet />
         <Toaster richColors position="top-center" />
+        <PWAInstallBanner />
       </AuthProvider>
     </QueryClientProvider>
   );

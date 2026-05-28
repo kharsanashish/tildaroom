@@ -14,6 +14,7 @@ import { getRateFor } from "@/lib/rates";
 import { RatePrompt } from "@/components/rate-prompt";
 import { JanuaryReview } from "@/components/january-review";
 import { RatesManager } from "@/components/rates-manager";
+import { subscribePush, sendPush } from "@/lib/push";
 
 // Extracted components
 import { StatCard } from "@/components/stat-card";
@@ -100,6 +101,16 @@ function OwnerDashboard() {
   };
 
   useEffect(() => { refresh(); }, []);
+
+  // Subscribe this owner to Web Push so tenants can notify them
+  const { user } = useAuth();
+  useEffect(() => {
+    if (user?.id) {
+      subscribePush(user.id);
+      // Store owner_id in settings so tenants can look up who to notify
+      supabase.from("settings").update({ owner_id: user.id }).eq("id", 1).then(() => {});
+    }
+  }, [user?.id]);
 
   const currentReadings = useMemo(
     () => readings.filter((r) => r.month === month && r.year === year),

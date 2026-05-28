@@ -6,11 +6,13 @@ import { CheckCircle2, XCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { formatINR, monthLabel, type PaymentStatus } from "@/lib/billing";
+import { sendPush } from "@/lib/push";
 
 interface Flat {
   id: string;
   flat_number: string;
   tenant_name: string;
+  tenant_id: string | null;
 }
 
 interface Reading {
@@ -49,8 +51,22 @@ export function ApprovalsList({
       payment_timestamp: new Date().toISOString(),
     }).eq("id", r.id);
     setActionId(null);
-    if (error) toast.error(error.message);
-    else { toast.success(isFull ? "Approved as paid" : "Approved as partial"); onChange(); }
+    if (error) { toast.error(error.message); return; }
+
+    const flat = flats.find((f) => f.id === r.flat_id);
+    toast.success(isFull ? "Approved as paid" : "Approved as partial");
+
+    // Notify tenant that their payment was approved
+    if (flat?.tenant_id) {
+      await sendPush({
+        toUserId: flat.tenant_id,
+        title: "Payment Approved ✅",
+        body: `Your payment of ₹${Number(r.amount_paid).toFixed(0)} for ${monthLabel(r.month, r.year)} has been approved.`,
+        url: "/tenant",
+        tag: "payment-approved",
+      });
+    }
+    onChange();
   };
 
   const reject = async (r: Reading) => {
@@ -60,8 +76,22 @@ export function ApprovalsList({
       amount_paid: 0,
     }).eq("id", r.id);
     setActionId(null);
-    if (error) toast.error(error.message);
-    else { toast.success("Rejected"); onChange(); }
+    if (error) { toast.error(error.message); return; }
+
+    const flat = flats.find((f) => f.id === r.flat_id);
+    toast.success("Rejected");
+
+    // Notify tenant that payment was rejected
+    if (flat?.tenant_id) {
+      await sendPush({
+        toUserId: flat.tenant_id,
+        title: "Payment Rejected ❌",
+        body: `Your payment for ${monthLabel(r.month, r.year)} was rejected. Please contact the owner.`,
+        url: "/tenant",
+        tag: "payment-rejected",
+      });
+    }
+    onChange();
   };
 
   return (

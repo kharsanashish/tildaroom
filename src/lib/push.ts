@@ -1,0 +1,94 @@
+import { supabase } from "@/integrations/supabase/client";
+
+const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY as string;
+
+// ── Convert VAPID public key (URL-safe base64) → Uint8Array ───────────────
+function urlBase64ToUint8Array(base64String: string): Uint8Array {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const raw = atob(base64);
+  return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
+}
+
+// ── Register service worker once ──────────────────────────────────────────
+export async function registerSW(): Promise<ServiceWorkerRegistration | null> {
+  if (!("serviceWorker" in navigator)) return null;
+  try {
+    const reg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+    return reg;
+  } catch (e) {
+    console.warn("SW registration failed:", e);
+    return null;
+  }
+}
+
+// ── Subscribe browser to Web Push and store in Supabase ───────────────────
+export async function subscribePush(userId: string): Promise<boolean> {
+  if (!("PushManager" in window)) return false;
+  if (!VAPID_PUBLIC_KEY) {
+    console.warn("VITE_VAPID_PUBLIC_KEY not set — push disabled");
+    return false;
+  }
+
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+
+    if (!sub) {
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+      });
+    }
+
+    const json = sub.toJSON();
+
+    // Upsert into Supabase — one row per user
+    const { error } = await supabase.from("push_subscriptions").upsert(
+      {
+        user_id: userId,
+        endpoint: json.endpoint,
+        p256dh: json.keys?.p256dh,
+        auth: json.keys?.auth,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id" }
+    );
+
+    if (error) console.warn("Failed to store push subscription:", error.message);
+    return !error;
+  } catch (e) {
+    console.warn("Push subscribe failed:", e);
+    return false;
+  }
+}
+
+// ── Unsubscribe (on sign-out) ─────────────────────────────────────────────
+export async function unsubscribePush(userId: string): Promise<void> {
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if (sub) await sub.unsubscribe();
+    await supabase.from("push_subscriptions").delete().eq("user_id", userId);
+  } catch (e) {
+    console.warn("Push unsubscribe failed:", e);
+  }
+}
+
+// ── Send push via Supabase Edge Function ──────────────────────────────────
+export async function sendPush(opts: {
+  toUserId: string;          // recipient user_id in Supabase auth
+  title: string;
+  body: string;
+  url?: string;
+  tag?: string;
+}): Promise<void> {
+  try {
+    const { error } = await supabase.functions.invoke("send-push", {
+      body: opts,
+    });
+    if (error) console.warn("sendPush error:", error.message);
+  } catch (e) {
+    console.warn("sendPush failed:", e);
+  }
+}

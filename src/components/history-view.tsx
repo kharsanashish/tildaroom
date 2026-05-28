@@ -11,6 +11,7 @@ interface Flat {
   id: string;
   flat_number: string;
   tenant_name: string;
+  tenant_whatsapp: string;
 }
 
 interface Reading {
@@ -143,9 +144,7 @@ export function HistoryView({
         <div className="space-y-2">
           {filtered.map((r) => {
             const flat = flats.find((f) => f.id === r.flat_id);
-            // BUG FIX: Show PDF receipt for both "paid" and "partial"
-            const canGetReceipt =
-              r.payment_status === "paid" || r.payment_status === "partial";
+            const canGetReceipt = Number(r.amount_paid) > 0;
             return (
               <Card key={r.id} className="p-4 flex items-center justify-between gap-3">
                 <div className="min-w-0">
@@ -185,6 +184,7 @@ export function HistoryView({
                             reading: r,
                             flatNumber: flat?.flat_number ?? "",
                             tenantName: flat?.tenant_name ?? "",
+                            tenantMobile: flat?.tenant_whatsapp,
                             ownerName: settings?.owner_name,
                             ownerMobile: settings?.owner_mobile,
                           })

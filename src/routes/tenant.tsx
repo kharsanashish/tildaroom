@@ -27,6 +27,7 @@ import {
 } from "@/lib/billing";
 import { getRateFor, hasRateFor } from "@/lib/rates";
 import { exportReadingPdf } from "@/lib/pdf";
+import { subscribePush, sendPush } from "@/lib/push";
 
 export const Route = createFileRoute("/tenant")({
   component: () => (
@@ -39,6 +40,7 @@ export const Route = createFileRoute("/tenant")({
 interface Flat {
   id: string; flat_number: string; rent: number; maintenance: number;
   other_charges: number; prev_meter_reading: number; tenant_name: string;
+  tenant_whatsapp: string;
 }
 interface Reading {
   id: string; flat_id: string; month: number; year: number;
@@ -49,7 +51,7 @@ interface Reading {
   payment_method: string | null; payment_timestamp: string | null;
 }
 interface Settings {
-  owner_upi_id: string; owner_name: string; owner_mobile: string;
+  owner_upi_id: string; owner_name: string; owner_mobile: string; owner_id?: string;
 }
 
 function TenantDashboard() {
@@ -100,6 +102,11 @@ function TenantDashboard() {
   };
 
   useEffect(() => { refresh(); }, [user]);
+
+  // Subscribe this tenant to Web Push so owner can notify them
+  useEffect(() => {
+    if (user?.id) subscribePush(user.id);
+  }, [user?.id]);
 
   const current = useMemo(
     () => readings.find((r) => r.month === month && r.year === year),
@@ -195,6 +202,18 @@ function TenantDashboard() {
     if (error) return toast.error(error.message);
     toast.success(`${method === "cash" ? "Cash" : "Payment"} marked pending approval.`);
     refresh();
+
+    // Notify owner via push notification
+    if (settings?.owner_id) {
+      await sendPush({
+        toUserId: settings.owner_id,
+        title: "New Payment Received 💰",
+        body: `Flat ${flat.flat_number} (${flat.tenant_name || "Tenant"}) paid ₹${amount.toFixed(0)} via ${method.toUpperCase()} for ${monthLabel(month, year)}. Tap to approve.`,
+        url: "/owner",
+        tag: "payment-received",
+      });
+    }
+
     if (openWhatsApp) {
       const mobile = (settings?.owner_mobile || "").replace(/\D/g, "");
       if (mobile) {
@@ -646,9 +665,7 @@ function HistoryList({
   return (
     <div className="space-y-2">
       {sorted.map((r) => {
-        // BUG FIX: Show receipt for both "paid" and "partial"
-        const canGetReceipt =
-          r.payment_status === "paid" || r.payment_status === "partial";
+        const canGetReceipt = Number(r.amount_paid) > 0;
         return (
           <Card key={r.id} className="p-4 flex items-center justify-between gap-3">
             <div className="min-w-0">
@@ -671,6 +688,7 @@ function HistoryList({
                     reading: r,
                     flatNumber: flat.flat_number,
                     tenantName: flat.tenant_name,
+                    tenantMobile: flat.tenant_whatsapp,
                     ownerName: settings?.owner_name,
                     ownerMobile: settings?.owner_mobile,
                   })
