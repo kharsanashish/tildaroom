@@ -144,7 +144,8 @@ export function HistoryView({
         <div className="space-y-2">
           {filtered.map((r) => {
             const flat = flats.find((f) => f.id === r.flat_id);
-            const canGetReceipt = Number(r.amount_paid) > 0;
+            const canGetReceipt =
+              r.payment_status === "paid" || r.payment_status === "partial";
             return (
               <Card key={r.id} className="p-4 flex items-center justify-between gap-3">
                 <div className="min-w-0">
