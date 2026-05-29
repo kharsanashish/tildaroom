@@ -28,6 +28,7 @@ import {
 import { getRateFor, hasRateFor } from "@/lib/rates";
 import { exportReadingPdf } from "@/lib/pdf";
 import { subscribePush, sendPush } from "@/lib/push";
+import { MeterCaptureButton } from "@/components/meter-capture-button";
 
 export const Route = createFileRoute("/tenant")({
   component: () => (
@@ -419,22 +420,30 @@ function TenantDashboard() {
                     Current{" "}
                     {current && current.curr_reading != null && "(saved)"}
                   </Label>
-                  <Input
-                    value={
-                      current && current.curr_reading != null
-                        ? String(current.curr_reading)
-                        : currInput
-                    }
-                    onChange={(e) => setCurrInput(e.target.value)}
-                    type="number"
-                    inputMode="numeric"
-                    disabled={
-                      !rateSet ||
-                      status === "paid" ||
-                      status === "pending_approval"
-                    }
-                    placeholder={rateSet ? "Enter reading" : "Locked"}
-                  />
+                  <div className="flex gap-1">
+                    <Input
+                      value={
+                        current && current.curr_reading != null
+                          ? String(current.curr_reading)
+                          : currInput
+                      }
+                      onChange={(e) => setCurrInput(e.target.value)}
+                      type="number"
+                      inputMode="numeric"
+                      disabled={
+                        !rateSet ||
+                        status === "paid" ||
+                        status === "pending_approval"
+                      }
+                      placeholder={rateSet ? "Enter reading" : "Locked"}
+                    />
+                    {rateSet && status !== "paid" && status !== "pending_approval" && (
+                      <MeterCaptureButton
+                        onReading={(v) => setCurrInput(String(v))}
+                        disabled={status === "paid" || status === "pending_approval"}
+                      />
+                    )}
+                  </div>
                 </div>
               </div>
               {rateSet && status !== "paid" && status !== "pending_approval" && (
@@ -665,7 +674,8 @@ function HistoryList({
   return (
     <div className="space-y-2">
       {sorted.map((r) => {
-        const canGetReceipt = Number(r.amount_paid) > 0;
+        const canGetReceipt =
+          r.payment_status === "paid" || r.payment_status === "partial";
         return (
           <Card key={r.id} className="p-4 flex items-center justify-between gap-3">
             <div className="min-w-0">
