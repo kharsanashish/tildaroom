@@ -27,16 +27,14 @@ export function MeterCaptureButton({ onReading, disabled }: MeterCaptureButtonPr
     setLoading(true);
 
     try {
-      // Full image preview
-      const fullBase64 = await fileToBase64(file, 1400);
-      setPreview(`data:image/jpeg;base64,${fullBase64}`);
+      const canvas = await fileToCanvas(file, 1400);
+      setPreview(canvas.toDataURL("image/jpeg", 0.6));
 
-      // Crop to top 40% where digit display always lives, then upscale
-      const canvas = await base64ToCanvas(fullBase64);
-      const cropped = cropAndUpscale(canvas);
-      const croppedBase64 = canvasToBase64(cropped);
+      // Isolate exactly the dark-background digit strip, invert for OCR
+      const processed = isolateDigitWindow(canvas);
+      const base64 = processed.toDataURL("image/jpeg", 0.95).split(",")[1];
 
-      const reading = await readMeterOcr(croppedBase64);
+      const reading = await ocrSpace(base64);
       setDetected(reading !== null ? String(reading) : null);
       setEditValue(reading !== null ? String(reading) : "");
       setDialogOpen(true);
@@ -75,14 +73,14 @@ export function MeterCaptureButton({ onReading, disabled }: MeterCaptureButtonPr
         onClick={() => inputRef.current?.click()}
         disabled={disabled || loading}
         title="Capture meter reading">
-        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+        {loading
+          ? <Loader2 className="h-4 w-4 animate-spin" />
+          : <Camera className="h-4 w-4" />}
       </Button>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Meter Reading</DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>Meter Reading</DialogTitle></DialogHeader>
 
           {preview && (
             <div className="rounded-lg overflow-hidden border bg-muted flex items-center justify-center max-h-52">
@@ -97,8 +95,8 @@ export function MeterCaptureButton({ onReading, disabled }: MeterCaptureButtonPr
               </p>
             ) : (
               <p className="text-xs text-muted-foreground text-center">
-                Could not auto-detect. Look at the 5 black digits on your meter
-                (ignore the last red digit) and type below.
+                Could not auto-detect. Type the 5 black digits from your meter
+                (ignore the last red digit).
               </p>
             )}
             <Input
@@ -126,25 +124,112 @@ export function MeterCaptureButton({ onReading, disabled }: MeterCaptureButtonPr
   );
 }
 
-// ── Image: crop top 40% and upscale 2× ────────────────────────────────────────
-// All meter displays in these photos sit in the top 30–40% of the image.
-// Cropping removes serial numbers, brand text, etc. that confuse OCR.
+// ─────────────────────────────────────────────────────────────────────────────
+// CORE: Isolate the dark-background digit window
+//
+// The meter display is the ONLY region with:
+//   - Dark/black background  (luminance < 70)
+//   - White digits on top    (large bright pixels inside dark zone)
+//   - Red background on last digit (also dark-ish when greyscaled)
+//
+// All other meter text (brand, serial, specs) is black on WHITE/LIGHT background.
+// We detect this dark band, crop it, invert it, then upscale for OCR.
+// After inversion: white digits → black, black background → white = perfect for OCR.
+// ─────────────────────────────────────────────────────────────────────────────
 
-function cropAndUpscale(canvas: HTMLCanvasElement): HTMLCanvasElement {
-  const srcH = Math.round(canvas.height * 0.40); // top 40%
+function isolateDigitWindow(src: HTMLCanvasElement): HTMLCanvasElement {
+  const W = src.width, H = src.height;
+  const ctx = src.getContext("2d")!;
+  const d = ctx.getImageData(0, 0, W, H).data;
+
+  // Build greyscale luminance map
+  const lum = (x: number, y: number) => {
+    const i = (y * W + x) * 4;
+    return 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+  };
+
+  // ── Step 1: find the dark horizontal band (digit window rows) ─────────────
+  // For each row: count dark pixels (lum < 70). Digit window rows have many dark pixels.
+  // Only scan top 60% — display is always in upper half of meter photo.
+
+  const rowDarkFraction: number[] = [];
+  for (let y = 0; y < H; y++) {
+    let dark = 0;
+    for (let x = 0; x < W; x++) {
+      if (lum(x, y) < 70) dark++;
+    }
+    rowDarkFraction.push(dark / W);
+  }
+
+  // Find contiguous band where ≥15% of pixels are dark, within top 60%
+  const DARK_ROW_THRESH = 0.15;
+  let topRow = -1, bottomRow = -1;
+  for (let y = 0; y < Math.floor(H * 0.60); y++) {
+    if (rowDarkFraction[y] >= DARK_ROW_THRESH) {
+      if (topRow === -1) topRow = y;
+      bottomRow = y;
+    } else if (topRow !== -1 && y - bottomRow > 8) {
+      // Allow small gaps (inter-row light gaps) up to 8 rows
+      break;
+    }
+  }
+
+  // Fallback: use top 35%
+  if (topRow === -1 || bottomRow - topRow < 5) {
+    topRow = 0;
+    bottomRow = Math.round(H * 0.35);
+  }
+
+  // Add vertical padding
+  topRow    = Math.max(0, topRow - 6);
+  bottomRow = Math.min(H - 1, bottomRow + 6);
+
+  // ── Step 2: find horizontal extent of dark region ─────────────────────────
+  let leftCol = W, rightCol = 0;
+  for (let y = topRow; y <= bottomRow; y++) {
+    for (let x = 0; x < W; x++) {
+      if (lum(x, y) < 70) {
+        if (x < leftCol) leftCol = x;
+        if (x > rightCol) rightCol = x;
+      }
+    }
+  }
+
+  // Fallback: full width
+  if (leftCol >= rightCol) { leftCol = 0; rightCol = W; }
+
+  // Add horizontal padding
+  leftCol  = Math.max(0, leftCol - 8);
+  rightCol = Math.min(W - 1, rightCol + 8);
+
+  const cropW = rightCol - leftCol;
+  const cropH = bottomRow - topRow;
+
+  // ── Step 3: crop, upscale 4×, invert ─────────────────────────────────────
+  // Upscale 4× so OCR has big clear digits to read
   const out = document.createElement("canvas");
-  out.width  = canvas.width  * 2;   // 2× upscale for cleaner OCR
-  out.height = srcH * 2;
-  const ctx = out.getContext("2d")!;
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = "high";
-  ctx.drawImage(canvas, 0, 0, canvas.width, srcH, 0, 0, out.width, out.height);
+  out.width  = cropW * 4;
+  out.height = cropH * 4;
+  const octx = out.getContext("2d")!;
+  octx.imageSmoothingEnabled = true;
+  octx.imageSmoothingQuality = "high";
+  octx.drawImage(src, leftCol, topRow, cropW, cropH, 0, 0, out.width, out.height);
+
+  // Invert: white digits → black (OCR reads black-on-white)
+  const img = octx.getImageData(0, 0, out.width, out.height);
+  const od = img.data;
+  for (let i = 0; i < od.length; i += 4) {
+    od[i]     = 255 - od[i];
+    od[i + 1] = 255 - od[i + 1];
+    od[i + 2] = 255 - od[i + 2];
+  }
+  octx.putImageData(img, 0, 0);
   return out;
 }
 
 // ── OCR.space ─────────────────────────────────────────────────────────────────
 
-async function readMeterOcr(base64: string): Promise<number | null> {
+async function ocrSpace(base64: string): Promise<number | null> {
   const apiKey = (import.meta.env.VITE_OCR_KEY as string) || "helloworld";
 
   const form = new FormData();
@@ -152,7 +237,7 @@ async function readMeterOcr(base64: string): Promise<number | null> {
   form.append("apikey", apiKey);
   form.append("language", "eng");
   form.append("isOverlayRequired", "false");
-  form.append("detectOrientation", "true");
+  form.append("detectOrientation", "false");
   form.append("scale", "true");
   form.append("OCREngine", "2");
 
@@ -165,70 +250,48 @@ async function readMeterOcr(base64: string): Promise<number | null> {
   const data = await res.json();
   if (data?.IsErroredOnProcessing) return null;
 
-  const fullText: string = (data?.ParsedResults ?? [])
+  const text: string = (data?.ParsedResults ?? [])
     .map((r: { ParsedText?: string }) => r.ParsedText ?? "")
-    .join("\n");
+    .join(" ");
 
-  return parseMeterText(fullText);
+  return parseMeterText(text);
 }
 
-// ── Parse OCR text → meter reading ───────────────────────────────────────────
-// Handles 3 OCR output patterns:
-//   A) "015537"          → 6 digits together
-//   B) "0 1 5 5 3 7"     → space-separated single digits
-//   C) "01553 7"         → mostly together, one gap
+// ── Parse: find 5–6 digit sequence, drop last (red drum) ─────────────────────
 
 function parseMeterText(raw: string): number | null {
   if (!raw) return null;
 
-  // ── Pattern A: 6 consecutive digits ──────────────────────────────────────
-  let m = raw.match(/\b(\d{6})\b/g);
-  if (m) {
-    // Prefer one that starts with 0 (meter readings start with leading zeros)
-    const best = m.find(s => s.startsWith("0")) ?? m[0];
-    return toReading(best);
+  // Collapse space-separated single digits: "0 1 5 5 3 7" → "015537"
+  // Run multiple times to handle all gaps
+  let t = raw;
+  for (let pass = 0; pass < 4; pass++) {
+    t = t.replace(/(?<=\b\d)\s+(?=\d\b)/g, "");
   }
 
-  // ── Pattern B: single digits separated by spaces "0 1 5 5 3 7" ───────────
-  // Also handles "01 55 37" (pairs) or "0155 37"
-  m = raw.match(/\b\d[\s\d]{8,12}\d\b/g);
-  if (m) {
-    const candidates = m
-      .map(s => s.replace(/\s+/g, ""))       // collapse all spaces
-      .filter(s => s.length >= 5 && s.length <= 7);
-    const best = candidates.find(s => s.startsWith("0") && s.length === 6)
-      ?? candidates.find(s => s.length >= 5);
-    if (best) return toReading(best.length === 5 ? `${best}0` : best);
-  }
+  // Pattern A: exactly 6 digits together → prefer starting with 0
+  const sixAll = [...(t.matchAll(/\d{6}/g))].map(m => m[0]);
+  const six = sixAll.find(s => s.startsWith("0")) ?? sixAll[0];
+  if (six) return parseInt(six.slice(0, -1), 10);
 
-  // ── Pattern C: 5-digit sequence (already without red digit) ──────────────
-  m = raw.match(/\b(\d{5})\b/g);
-  if (m) {
-    const best = m.find(s => s.startsWith("0")) ?? m[0];
-    // 5 digits = OCR dropped the red digit already → parse directly
-    return parseInt(best, 10);
-  }
+  // Pattern B: 7 digits (OCR added extra) → take middle 6
+  const sevenAll = [...(t.matchAll(/\d{7}/g))].map(m => m[0]);
+  const seven = sevenAll.find(s => s.slice(1).startsWith("0"))
+    ?? sevenAll.find(s => s.startsWith("0"))
+    ?? sevenAll[0];
+  if (seven) return parseInt(seven.slice(0, 6).slice(0, -1), 10);
 
-  // ── Fallback: collapse all digits in the text ─────────────────────────────
-  const allDigits = raw.replace(/\D/g, "");
-  if (allDigits.length >= 5) {
-    // Take first 6 digits
-    const chunk = allDigits.slice(0, 6);
-    return toReading(chunk.length === 6 ? chunk : chunk.padEnd(6, "0"));
-  }
+  // Pattern C: 5 digits (OCR already dropped red digit)
+  const fiveAll = [...(t.matchAll(/\d{5}/g))].map(m => m[0]);
+  const five = fiveAll.find(s => s.startsWith("0")) ?? fiveAll[0];
+  if (five) return parseInt(five, 10);
 
   return null;
 }
 
-// Drop last digit (red drum), remove leading zeros
-function toReading(sixDigits: string): number {
-  const without = sixDigits.slice(0, -1);   // drop last (red digit)
-  return parseInt(without, 10);             // parseInt removes leading zeros
-}
+// ── file → canvas helper ──────────────────────────────────────────────────────
 
-// ── Canvas / base64 helpers ───────────────────────────────────────────────────
-
-function fileToBase64(file: File, maxPx: number): Promise<string> {
+function fileToCanvas(file: File, maxPx: number): Promise<HTMLCanvasElement> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (ev) => {
@@ -239,7 +302,7 @@ function fileToBase64(file: File, maxPx: number): Promise<string> {
         c.width  = Math.round(img.width  * scale);
         c.height = Math.round(img.height * scale);
         c.getContext("2d")!.drawImage(img, 0, 0, c.width, c.height);
-        resolve(c.toDataURL("image/jpeg", 0.88).split(",")[1]);
+        resolve(c);
       };
       img.onerror = reject;
       img.src = ev.target?.result as string;
@@ -247,22 +310,4 @@ function fileToBase64(file: File, maxPx: number): Promise<string> {
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });
-}
-
-function base64ToCanvas(b64: string): Promise<HTMLCanvasElement> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => {
-      const c = document.createElement("canvas");
-      c.width = img.width; c.height = img.height;
-      c.getContext("2d")!.drawImage(img, 0, 0);
-      resolve(c);
-    };
-    img.onerror = reject;
-    img.src = `data:image/jpeg;base64,${b64}`;
-  });
-}
-
-function canvasToBase64(c: HTMLCanvasElement): string {
-  return c.toDataURL("image/jpeg", 0.92).split(",")[1];
 }
