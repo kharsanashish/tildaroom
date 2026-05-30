@@ -25,15 +25,11 @@ export function MeterCaptureButton({ onReading, disabled }: MeterCaptureButtonPr
     if (!file) return;
     if (inputRef.current) inputRef.current.value = "";
     setLoading(true);
-
     try {
       const canvas = await fileToCanvas(file, 1400);
       setPreview(canvas.toDataURL("image/jpeg", 0.6));
-
-      // Isolate exactly the dark-background digit strip, invert for OCR
       const processed = isolateDigitWindow(canvas);
       const base64 = processed.toDataURL("image/jpeg", 0.95).split(",")[1];
-
       const reading = await ocrSpace(base64);
       setDetected(reading !== null ? String(reading) : null);
       setEditValue(reading !== null ? String(reading) : "");
@@ -67,27 +63,21 @@ export function MeterCaptureButton({ onReading, disabled }: MeterCaptureButtonPr
     <>
       <input ref={inputRef} type="file" accept="image/*"
         capture="environment" className="hidden" onChange={handleCapture} />
-
       <Button type="button" variant="outline" size="icon"
         className="h-9 w-9 flex-shrink-0"
         onClick={() => inputRef.current?.click()}
-        disabled={disabled || loading}
-        title="Capture meter reading">
-        {loading
-          ? <Loader2 className="h-4 w-4 animate-spin" />
-          : <Camera className="h-4 w-4" />}
+        disabled={disabled || loading} title="Capture meter reading">
+        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
       </Button>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader><DialogTitle>Meter Reading</DialogTitle></DialogHeader>
-
           {preview && (
             <div className="rounded-lg overflow-hidden border bg-muted flex items-center justify-center max-h-52">
               <img src={preview} alt="Meter" className="max-h-52 w-full object-contain" />
             </div>
           )}
-
           <div className="space-y-2">
             {detected ? (
               <p className="text-xs text-center font-medium" style={{ color: "var(--success)" }}>
@@ -95,21 +85,17 @@ export function MeterCaptureButton({ onReading, disabled }: MeterCaptureButtonPr
               </p>
             ) : (
               <p className="text-xs text-muted-foreground text-center">
-                Could not auto-detect. Type the 5 black digits from your meter
-                (ignore the last red digit).
+                Could not auto-detect. Type the 5 black digits (ignore the last red digit).
               </p>
             )}
             <Input
               value={editValue}
               onChange={(e) => setEditValue(e.target.value.replace(/\D/g, ""))}
-              type="number"
-              inputMode="numeric"
-              placeholder="e.g. 1553"
+              type="number" inputMode="numeric" placeholder="e.g. 613"
               className="text-2xl font-bold text-center tracking-widest h-14"
               autoFocus
             />
           </div>
-
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={retake} className="flex-1">
               <RefreshCw className="h-4 w-4 mr-1" /> Retake
@@ -125,16 +111,15 @@ export function MeterCaptureButton({ onReading, disabled }: MeterCaptureButtonPr
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CORE: Isolate the dark-background digit window
+// DIGIT WINDOW ISOLATION
 //
-// The meter display is the ONLY region with:
-//   - Dark/black background  (luminance < 70)
-//   - White digits on top    (large bright pixels inside dark zone)
-//   - Red background on last digit (also dark-ish when greyscaled)
+// The meter digit display is unique: it has BOTH very dark pixels (black bg)
+// AND very bright pixels (white digits) in the same rows.
+// Score = dark_fraction × bright_fraction   ← highest for digit window rows
 //
-// All other meter text (brand, serial, specs) is black on WHITE/LIGHT background.
-// We detect this dark band, crop it, invert it, then upscale for OCR.
-// After inversion: white digits → black, black background → white = perfect for OCR.
+// Metal casing / wall: high dark, low bright → low score
+// White face plate text: low dark, high bright → low score
+// Digit window: both dark AND bright → HIGH score  ✓
 // ─────────────────────────────────────────────────────────────────────────────
 
 function isolateDigitWindow(src: HTMLCanvasElement): HTMLCanvasElement {
@@ -142,71 +127,71 @@ function isolateDigitWindow(src: HTMLCanvasElement): HTMLCanvasElement {
   const ctx = src.getContext("2d")!;
   const d = ctx.getImageData(0, 0, W, H).data;
 
-  // Build greyscale luminance map
-  const lum = (x: number, y: number) => {
+  const lum = (x: number, y: number): number => {
     const i = (y * W + x) * 4;
     return 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
   };
 
-  // ── Step 1: find the dark horizontal band (digit window rows) ─────────────
-  // For each row: count dark pixels (lum < 70). Digit window rows have many dark pixels.
-  // Only scan top 60% — display is always in upper half of meter photo.
-
-  const rowDarkFraction: number[] = [];
-  for (let y = 0; y < H; y++) {
-    let dark = 0;
+  // ── Step 1: Score each row by bimodal contrast ────────────────────────────
+  // Only scan top 65% — digit display is always in upper portion of photo
+  const scores: number[] = new Array(H).fill(0);
+  for (let y = 0; y < Math.floor(H * 0.65); y++) {
+    let dark = 0, bright = 0;
     for (let x = 0; x < W; x++) {
-      if (lum(x, y) < 70) dark++;
+      const l = lum(x, y);
+      if (l < 60)  dark++;    // very dark = black background
+      if (l > 180) bright++;  // very bright = white digit
     }
-    rowDarkFraction.push(dark / W);
+    const df = dark / W;
+    const bf = bright / W;
+    // Bimodal score: both dark AND bright pixels in same row = digit window
+    scores[y] = df * bf;
   }
 
-  // Find contiguous band where ≥15% of pixels are dark, within top 60%
-  const DARK_ROW_THRESH = 0.15;
-  let topRow = -1, bottomRow = -1;
-  for (let y = 0; y < Math.floor(H * 0.60); y++) {
-    if (rowDarkFraction[y] >= DARK_ROW_THRESH) {
-      if (topRow === -1) topRow = y;
-      bottomRow = y;
-    } else if (topRow !== -1 && y - bottomRow > 8) {
-      // Allow small gaps (inter-row light gaps) up to 8 rows
-      break;
-    }
+  // ── Step 2: Find peak score row, expand to full band ─────────────────────
+  let peakY = 0;
+  for (let y = 1; y < H; y++) {
+    if (scores[y] > scores[peakY]) peakY = y;
   }
 
-  // Fallback: use top 35%
-  if (topRow === -1 || bottomRow - topRow < 5) {
-    topRow = 0;
-    bottomRow = Math.round(H * 0.35);
+  // Expand upward and downward while score stays above 30% of peak
+  const threshold = scores[peakY] * 0.30;
+  let topRow = peakY, bottomRow = peakY;
+  while (topRow > 0    && scores[topRow - 1] >= threshold) topRow--;
+  while (bottomRow < H - 1 && scores[bottomRow + 1] >= threshold) bottomRow++;
+
+  // Safety: if band is tiny (< 1% of height), fallback to top third
+  if (bottomRow - topRow < H * 0.01) {
+    topRow    = Math.round(H * 0.05);
+    bottomRow = Math.round(H * 0.38);
   }
 
-  // Add vertical padding
-  topRow    = Math.max(0, topRow - 6);
-  bottomRow = Math.min(H - 1, bottomRow + 6);
+  // Vertical padding
+  topRow    = Math.max(0, topRow - 10);
+  bottomRow = Math.min(H - 1, bottomRow + 10);
 
-  // ── Step 2: find horizontal extent of dark region ─────────────────────────
+  // ── Step 3: Find horizontal extent within the detected band ───────────────
   let leftCol = W, rightCol = 0;
   for (let y = topRow; y <= bottomRow; y++) {
     for (let x = 0; x < W; x++) {
-      if (lum(x, y) < 70) {
+      const l = lum(x, y);
+      if (l < 60 || l > 180) {          // dark OR bright pixel → digit window content
         if (x < leftCol) leftCol = x;
         if (x > rightCol) rightCol = x;
       }
     }
   }
-
-  // Fallback: full width
   if (leftCol >= rightCol) { leftCol = 0; rightCol = W; }
 
-  // Add horizontal padding
-  leftCol  = Math.max(0, leftCol - 8);
-  rightCol = Math.min(W - 1, rightCol + 8);
+  // Horizontal padding
+  leftCol  = Math.max(0, leftCol - 10);
+  rightCol = Math.min(W - 1, rightCol + 10);
 
   const cropW = rightCol - leftCol;
   const cropH = bottomRow - topRow;
 
-  // ── Step 3: crop, upscale 4×, invert ─────────────────────────────────────
-  // Upscale 4× so OCR has big clear digits to read
+  // ── Step 4: Crop → upscale 4× → invert ────────────────────────────────────
+  // Invert so white-on-black becomes black-on-white → OCR reads easily
   const out = document.createElement("canvas");
   out.width  = cropW * 4;
   out.height = cropH * 4;
@@ -215,7 +200,6 @@ function isolateDigitWindow(src: HTMLCanvasElement): HTMLCanvasElement {
   octx.imageSmoothingQuality = "high";
   octx.drawImage(src, leftCol, topRow, cropW, cropH, 0, 0, out.width, out.height);
 
-  // Invert: white digits → black (OCR reads black-on-white)
   const img = octx.getImageData(0, 0, out.width, out.height);
   const od = img.data;
   for (let i = 0; i < od.length; i += 4) {
@@ -231,7 +215,6 @@ function isolateDigitWindow(src: HTMLCanvasElement): HTMLCanvasElement {
 
 async function ocrSpace(base64: string): Promise<number | null> {
   const apiKey = (import.meta.env.VITE_OCR_KEY as string) || "helloworld";
-
   const form = new FormData();
   form.append("base64Image", `data:image/jpeg;base64,${base64}`);
   form.append("apikey", apiKey);
@@ -241,11 +224,7 @@ async function ocrSpace(base64: string): Promise<number | null> {
   form.append("scale", "true");
   form.append("OCREngine", "2");
 
-  const res = await fetch("https://api.ocr.space/parse/image", {
-    method: "POST",
-    body: form,
-  });
-
+  const res = await fetch("https://api.ocr.space/parse/image", { method: "POST", body: form });
   if (!res.ok) return null;
   const data = await res.json();
   if (data?.IsErroredOnProcessing) return null;
@@ -257,44 +236,49 @@ async function ocrSpace(base64: string): Promise<number | null> {
   return parseMeterText(text);
 }
 
-// ── Parse: find 5–6 digit sequence, drop last (red drum) ─────────────────────
+// ── Parse OCR text → meter reading ───────────────────────────────────────────
+// Digit window has 6 digits: first 5 are the reading, last is red (ignored).
+// OCR may return them together "006135" or spaced "0 0 6 1 3 5".
 
 function parseMeterText(raw: string): number | null {
   if (!raw) return null;
 
-  // Collapse space-separated single digits: "0 1 5 5 3 7" → "015537"
-  // Run multiple times to handle all gaps
+  // Collapse space-separated digits without lookbehind (broad browser support)
+  // "0 0 6 1 3 5" → "006135"
   let t = raw;
-  for (let pass = 0; pass < 4; pass++) {
-    t = t.replace(/(?<=\b\d)\s+(?=\d\b)/g, "");
+  for (let i = 0; i < 6; i++) {
+    t = t.replace(/(\d) (\d)/g, "$1$2");
   }
 
-  // Pattern A: exactly 6 digits together → prefer starting with 0
-  const sixAll = [...(t.matchAll(/\d{6}/g))].map(m => m[0]);
-  const six = sixAll.find(s => s.startsWith("0")) ?? sixAll[0];
-  if (six) return parseInt(six.slice(0, -1), 10);
+  // Extract all digit-only sequences
+  const seqs = t.match(/\d+/g) ?? [];
 
-  // Pattern B: 7 digits (OCR added extra) → take middle 6
-  const sevenAll = [...(t.matchAll(/\d{7}/g))].map(m => m[0]);
-  const seven = sevenAll.find(s => s.slice(1).startsWith("0"))
-    ?? sevenAll.find(s => s.startsWith("0"))
-    ?? sevenAll[0];
+  // Priority 1: exactly 6 digits (full display)
+  const six = seqs.find(s => s.length === 6);
+  if (six) return parseInt(six.slice(0, -1), 10); // drop last (red digit)
+
+  // Priority 2: 7 digits (OCR added 1 extra) → take first 6
+  const seven = seqs.find(s => s.length === 7);
   if (seven) return parseInt(seven.slice(0, 6).slice(0, -1), 10);
 
-  // Pattern C: 5 digits (OCR already dropped red digit)
-  const fiveAll = [...(t.matchAll(/\d{5}/g))].map(m => m[0]);
-  const five = fiveAll.find(s => s.startsWith("0")) ?? fiveAll[0];
+  // Priority 3: 5 digits (OCR already dropped red digit or misread 1)
+  const five = seqs.filter(s => s.length === 5)
+                   .sort((a, b) => (a.startsWith("0") ? -1 : 1))[0]; // prefer leading 0
   if (five) return parseInt(five, 10);
+
+  // Priority 4: any 4+ digit sequence
+  const four = seqs.find(s => s.length >= 4);
+  if (four) return parseInt(four.slice(0, -1), 10);
 
   return null;
 }
 
-// ── file → canvas helper ──────────────────────────────────────────────────────
+// ── File → Canvas ─────────────────────────────────────────────────────────────
 
 function fileToCanvas(file: File, maxPx: number): Promise<HTMLCanvasElement> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = (ev) => {
+    reader.onload = ev => {
       const img = new Image();
       img.onload = () => {
         const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
