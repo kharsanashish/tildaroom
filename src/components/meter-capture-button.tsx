@@ -158,7 +158,14 @@ function isolateDigitWindow(src: HTMLCanvasElement): HTMLCanvasElement {
   for (let y = 1; y < H; y++) if (scores[y] > scores[peakY]) peakY = y;
 
   if (scores[peakY] < 0.0005) {
-    return cropInvertUpscale(src, 0, 0, W, Math.round(H * 0.40));
+    // Fallback: hard-crop the expected digit band (15%–45% vertical, 5%–85% horizontal).
+    return cropInvertUpscale(
+      src,
+      Math.round(W * 0.05),
+      Math.round(H * 0.15),
+      Math.round(W * 0.80),
+      Math.round(H * 0.30),
+    );
   }
 
   const thresh = scores[peakY] * 0.20;
