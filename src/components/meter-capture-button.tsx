@@ -85,7 +85,7 @@ export function MeterCaptureButton({ onReading, disabled }: MeterCaptureButtonPr
               </p>
             ) : (
               <p className="text-xs text-muted-foreground text-center">
-                Could not auto-detect. Type the 5 black digits (ignore the last red digit).
+                Could not auto-detect. Type the 5 black digits (ignore last red digit).
               </p>
             )}
             <Input
@@ -111,15 +111,18 @@ export function MeterCaptureButton({ onReading, disabled }: MeterCaptureButtonPr
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DIGIT WINDOW ISOLATION
+// DIGIT WINDOW DETECTION
 //
-// The meter digit display is unique: it has BOTH very dark pixels (black bg)
-// AND very bright pixels (white digits) in the same rows.
-// Score = dark_fraction × bright_fraction   ← highest for digit window rows
+// The digit strip is a horizontal band with:
+//   1. DARK pixels (black drum background)        → dark_fraction > 0
+//   2. BRIGHT pixels (white digits)               → bright_fraction > 0
+//   3. Bright pixels SPREAD across full row width → bright_span > 0.3
+//      (rules out single LED spots, reflections)
 //
-// Metal casing / wall: high dark, low bright → low score
-// White face plate text: low dark, high bright → low score
-// Digit window: both dark AND bright → HIGH score  ✓
+// Score = dark_fraction × bright_fraction × bright_span
+//
+// LED spot:      dark=0.10 × bright=0.06 × span=0.03  = 0.00018  ← tiny
+// Digit window:  dark=0.50 × bright=0.22 × span=0.60  = 0.066    ← large ✓
 // ─────────────────────────────────────────────────────────────────────────────
 
 function isolateDigitWindow(src: HTMLCanvasElement): HTMLCanvasElement {
@@ -132,50 +135,60 @@ function isolateDigitWindow(src: HTMLCanvasElement): HTMLCanvasElement {
     return 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
   };
 
-  // ── Step 1: Score each row by bimodal contrast ────────────────────────────
-  // Only scan top 65% — digit display is always in upper portion of photo
+  // ── Score every row (top 65% only — display always in upper half) ──────────
   const scores: number[] = new Array(H).fill(0);
+
   for (let y = 0; y < Math.floor(H * 0.65); y++) {
     let dark = 0, bright = 0;
+    let firstBright = W, lastBright = -1;
+
     for (let x = 0; x < W; x++) {
       const l = lum(x, y);
-      if (l < 60)  dark++;    // very dark = black background
-      if (l > 180) bright++;  // very bright = white digit
+      if (l < 65)  { dark++; }
+      if (l > 175) {
+        bright++;
+        if (x < firstBright) firstBright = x;
+        if (x > lastBright)  lastBright  = x;
+      }
     }
-    const df = dark / W;
-    const bf = bright / W;
-    // Bimodal score: both dark AND bright pixels in same row = digit window
-    scores[y] = df * bf;
+
+    const darkF   = dark   / W;
+    const brightF = bright / W;
+    // How far bright pixels are spread across the row (0–1)
+    const brightSpan = lastBright > firstBright ? (lastBright - firstBright) / W : 0;
+
+    // Only score rows where bright pixels span at least 25% of image width
+    // This eliminates single LED spots, reflections, etc.
+    scores[y] = brightSpan >= 0.25 ? darkF * brightF * brightSpan : 0;
   }
 
-  // ── Step 2: Find peak score row, expand to full band ─────────────────────
+  // ── Find peak, expand band ────────────────────────────────────────────────
   let peakY = 0;
   for (let y = 1; y < H; y++) {
     if (scores[y] > scores[peakY]) peakY = y;
   }
 
-  // Expand upward and downward while score stays above 30% of peak
-  const threshold = scores[peakY] * 0.30;
-  let topRow = peakY, bottomRow = peakY;
-  while (topRow > 0    && scores[topRow - 1] >= threshold) topRow--;
-  while (bottomRow < H - 1 && scores[bottomRow + 1] >= threshold) bottomRow++;
-
-  // Safety: if band is tiny (< 1% of height), fallback to top third
-  if (bottomRow - topRow < H * 0.01) {
-    topRow    = Math.round(H * 0.05);
-    bottomRow = Math.round(H * 0.38);
+  // If max score is near zero, no digit window found — fallback to top third
+  if (scores[peakY] < 0.001) {
+    return fallbackCrop(src, W, H);
   }
 
-  // Vertical padding
-  topRow    = Math.max(0, topRow - 10);
-  bottomRow = Math.min(H - 1, bottomRow + 10);
+  // Expand up/down while score stays above 25% of peak
+  const thresh = scores[peakY] * 0.25;
+  let topRow = peakY, bottomRow = peakY;
+  while (topRow > 0        && scores[topRow - 1]    >= thresh) topRow--;
+  while (bottomRow < H - 1 && scores[bottomRow + 1] >= thresh) bottomRow++;
 
-  // ── Step 3: Find horizontal extent within the detected band ───────────────
+  // Padding
+  topRow    = Math.max(0,     topRow    - 12);
+  bottomRow = Math.min(H - 1, bottomRow + 12);
+
+  // ── Find horizontal extent of the dark+bright content ─────────────────────
   let leftCol = W, rightCol = 0;
   for (let y = topRow; y <= bottomRow; y++) {
     for (let x = 0; x < W; x++) {
       const l = lum(x, y);
-      if (l < 60 || l > 180) {          // dark OR bright pixel → digit window content
+      if (l < 65 || l > 175) {
         if (x < leftCol) leftCol = x;
         if (x > rightCol) rightCol = x;
       }
@@ -183,22 +196,29 @@ function isolateDigitWindow(src: HTMLCanvasElement): HTMLCanvasElement {
   }
   if (leftCol >= rightCol) { leftCol = 0; rightCol = W; }
 
-  // Horizontal padding
-  leftCol  = Math.max(0, leftCol - 10);
-  rightCol = Math.min(W - 1, rightCol + 10);
+  leftCol  = Math.max(0,     leftCol  - 12);
+  rightCol = Math.min(W - 1, rightCol + 12);
 
-  const cropW = rightCol - leftCol;
-  const cropH = bottomRow - topRow;
+  return cropInvertUpscale(src, leftCol, topRow, rightCol - leftCol, bottomRow - topRow);
+}
 
-  // ── Step 4: Crop → upscale 4× → invert ────────────────────────────────────
-  // Invert so white-on-black becomes black-on-white → OCR reads easily
+// Fallback: just take the top 35%
+function fallbackCrop(src: HTMLCanvasElement, W: number, H: number): HTMLCanvasElement {
+  return cropInvertUpscale(src, 0, 0, W, Math.round(H * 0.35));
+}
+
+// Crop → upscale 4× → invert colours (white digits become black for OCR)
+function cropInvertUpscale(
+  src: HTMLCanvasElement,
+  x: number, y: number, w: number, h: number
+): HTMLCanvasElement {
   const out = document.createElement("canvas");
-  out.width  = cropW * 4;
-  out.height = cropH * 4;
+  out.width  = w * 4;
+  out.height = h * 4;
   const octx = out.getContext("2d")!;
   octx.imageSmoothingEnabled = true;
   octx.imageSmoothingQuality = "high";
-  octx.drawImage(src, leftCol, topRow, cropW, cropH, 0, 0, out.width, out.height);
+  octx.drawImage(src, x, y, w, h, 0, 0, out.width, out.height);
 
   const img = octx.getImageData(0, 0, out.width, out.height);
   const od = img.data;
@@ -236,39 +256,35 @@ async function ocrSpace(base64: string): Promise<number | null> {
   return parseMeterText(text);
 }
 
-// ── Parse OCR text → meter reading ───────────────────────────────────────────
-// Digit window has 6 digits: first 5 are the reading, last is red (ignored).
-// OCR may return them together "006135" or spaced "0 0 6 1 3 5".
+// ── Parse: find 6-digit sequence, drop last (red drum) ───────────────────────
 
 function parseMeterText(raw: string): number | null {
   if (!raw) return null;
 
-  // Collapse space-separated digits without lookbehind (broad browser support)
-  // "0 0 6 1 3 5" → "006135"
+  // Collapse space-separated digits: "0 0 6 1 3 5" → "006135"
   let t = raw;
-  for (let i = 0; i < 6; i++) {
-    t = t.replace(/(\d) (\d)/g, "$1$2");
-  }
+  for (let i = 0; i < 7; i++) t = t.replace(/(\d) (\d)/g, "$1$2");
 
-  // Extract all digit-only sequences
   const seqs = t.match(/\d+/g) ?? [];
 
-  // Priority 1: exactly 6 digits (full display)
+  // Priority 1: exactly 6 digits → drop last = reading
   const six = seqs.find(s => s.length === 6);
-  if (six) return parseInt(six.slice(0, -1), 10); // drop last (red digit)
+  if (six) return parseInt(six.slice(0, -1), 10);
 
-  // Priority 2: 7 digits (OCR added 1 extra) → take first 6
+  // Priority 2: 7 digits → take first 6 → drop last
   const seven = seqs.find(s => s.length === 7);
   if (seven) return parseInt(seven.slice(0, 6).slice(0, -1), 10);
 
-  // Priority 3: 5 digits (OCR already dropped red digit or misread 1)
-  const five = seqs.filter(s => s.length === 5)
-                   .sort((a, b) => (a.startsWith("0") ? -1 : 1))[0]; // prefer leading 0
+  // Priority 3: 5 digits → already without red digit
+  const five = seqs
+    .filter(s => s.length === 5)
+    .sort((a, b) => (a.startsWith("0") ? -1 : 1))[0];
   if (five) return parseInt(five, 10);
 
-  // Priority 4: any 4+ digit sequence
-  const four = seqs.find(s => s.length >= 4);
-  if (four) return parseInt(four.slice(0, -1), 10);
+  // Priority 4: longest sequence ≥ 4
+  const best = seqs.filter(s => s.length >= 4)
+                   .sort((a, b) => b.length - a.length)[0];
+  if (best) return parseInt(best.slice(0, Math.min(best.length, 5)), 10);
 
   return null;
 }
