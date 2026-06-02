@@ -145,21 +145,25 @@ function isolateDigitWindow(src: HTMLCanvasElement): HTMLCanvasElement {
     for (let x = 0; x < W; x++) {
       const l = lum(x, y);
       if (l < 65)  { dark++; }
-      if (l > 175) {
+      if (l > 160) {                        // lowered from 175 → catches dimmer digits
         bright++;
         if (x < firstBright) firstBright = x;
         if (x > lastBright)  lastBright  = x;
       }
     }
 
-    const darkF   = dark   / W;
-    const brightF = bright / W;
-    // How far bright pixels are spread across the row (0–1)
+    const darkF    = dark   / W;
+    const brightF  = bright / W;
     const brightSpan = lastBright > firstBright ? (lastBright - firstBright) / W : 0;
 
-    // Only score rows where bright pixels span at least 25% of image width
-    // This eliminates single LED spots, reflections, etc.
-    scores[y] = brightSpan >= 0.25 ? darkF * brightF * brightSpan : 0;
+    // Digit window conditions:
+    //   darkF   > 0.20  → must have dark background (not white face plate)
+    //   brightF > 0.05  → must have some bright digits
+    //   brightF < 0.60  → NOT mostly white (eliminates "AN ISO 9001:2000" text rows)
+    //   brightSpan > 0.18 → bright pixels spread across row (not just one LED spot)
+    if (darkF > 0.20 && brightF > 0.05 && brightF < 0.60 && brightSpan >= 0.18) {
+      scores[y] = darkF * brightF * brightSpan;
+    }
   }
 
   // ── Find peak, expand band ────────────────────────────────────────────────
