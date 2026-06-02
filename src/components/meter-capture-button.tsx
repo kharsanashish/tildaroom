@@ -91,7 +91,7 @@ export function MeterCaptureButton({ onReading, disabled }: MeterCaptureButtonPr
             <Input
               value={editValue}
               onChange={(e) => setEditValue(e.target.value.replace(/\D/g, ""))}
-              type="number" inputMode="numeric" placeholder="e.g. 613"
+              type="number" inputMode="numeric" placeholder="e.g. 618"
               className="text-2xl font-bold text-center tracking-widest h-14"
               autoFocus
             />
@@ -111,19 +111,23 @@ export function MeterCaptureButton({ onReading, disabled }: MeterCaptureButtonPr
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DIGIT WINDOW DETECTION
+// DIGIT WINDOW DETECTION — strict threshold approach
 //
-// The digit strip is a horizontal band with:
-//   1. DARK pixels (black drum background)        → dark_fraction > 0
-//   2. BRIGHT pixels (white digits)               → bright_fraction > 0
-//   3. Bright pixels SPREAD across full row width → bright_span > 0.3
-//      (rules out single LED spots, reflections)
+// Key insight from meter photos:
+//   Digit window background = TRUE BLACK  (lum < 40)   pure plastic drum bg
+//   White digits on display = TRUE WHITE  (lum > 200)  bright plastic digits
+//   Printed text on paper   = near-white bg + dark-grey text  (lum 80–190)
+//   ISO/brand text rows     = paper white bg ~210, text ~60  → scores lower
 //
-// Score = dark_fraction × bright_fraction × bright_span
+// Score = trueBlack_fraction × trueWhite_fraction × trueWhite_span
 //
-// LED spot:      dark=0.10 × bright=0.06 × span=0.03  = 0.00018  ← tiny
-// Digit window:  dark=0.50 × bright=0.22 × span=0.60  = 0.066    ← large ✓
+// This eliminates printed text rows (paper white ≠ pure white, text grey ≠ pure black)
+// and LED spots (concentrated bright, no true-black band).
 // ─────────────────────────────────────────────────────────────────────────────
+
+// Strict thresholds — only pure black and pure white count
+const TRUE_BLACK = 40;   // only genuine digit-window background
+const TRUE_WHITE = 200;  // only genuine digit faces
 
 function isolateDigitWindow(src: HTMLCanvasElement): HTMLCanvasElement {
   const W = src.width, H = src.height;
@@ -135,64 +139,60 @@ function isolateDigitWindow(src: HTMLCanvasElement): HTMLCanvasElement {
     return 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
   };
 
-  // ── Score every row (top 65% only — display always in upper half) ──────────
-  const scores: number[] = new Array(H).fill(0);
+  // ── Score each row (top 70% — display in upper half of photo) ─────────────
+  const scores = new Float32Array(H);
 
-  for (let y = 0; y < Math.floor(H * 0.65); y++) {
-    let dark = 0, bright = 0;
-    let firstBright = W, lastBright = -1;
+  for (let y = 0; y < Math.floor(H * 0.70); y++) {
+    let black = 0, white = 0;
+    let firstWhite = W, lastWhite = -1;
 
     for (let x = 0; x < W; x++) {
       const l = lum(x, y);
-      if (l < 65)  { dark++; }
-      if (l > 160) {                        // lowered from 175 → catches dimmer digits
-        bright++;
-        if (x < firstBright) firstBright = x;
-        if (x > lastBright)  lastBright  = x;
+      if (l < TRUE_BLACK) { black++; }
+      if (l > TRUE_WHITE) {
+        white++;
+        if (x < firstWhite) firstWhite = x;
+        if (x > lastWhite)  lastWhite  = x;
       }
     }
 
-    const darkF    = dark   / W;
-    const brightF  = bright / W;
-    const brightSpan = lastBright > firstBright ? (lastBright - firstBright) / W : 0;
+    const blackF = black / W;
+    const whiteF = white / W;
+    // White span: how far the pure-white pixels stretch across the row
+    const whiteSpan = lastWhite > firstWhite ? (lastWhite - firstWhite) / W : 0;
 
-    // Digit window conditions:
-    //   darkF   > 0.20  → must have dark background (not white face plate)
-    //   brightF > 0.05  → must have some bright digits
-    //   brightF < 0.60  → NOT mostly white (eliminates "AN ISO 9001:2000" text rows)
-    //   brightSpan > 0.18 → bright pixels spread across row (not just one LED spot)
-    if (darkF > 0.20 && brightF > 0.05 && brightF < 0.60 && brightSpan >= 0.18) {
-      scores[y] = darkF * brightF * brightSpan;
-    }
+    // Only count rows where white pixels span ≥ 20% width (digit strip not a point)
+    scores[y] = whiteSpan >= 0.20 ? blackF * whiteF * whiteSpan : 0;
   }
 
-  // ── Find peak, expand band ────────────────────────────────────────────────
+  // ── Find peak row ─────────────────────────────────────────────────────────
   let peakY = 0;
   for (let y = 1; y < H; y++) {
     if (scores[y] > scores[peakY]) peakY = y;
   }
 
-  // If max score is near zero, no digit window found — fallback to top third
-  if (scores[peakY] < 0.001) {
-    return fallbackCrop(src, W, H);
+  // If no clear winner, fallback to top 40%
+  if (scores[peakY] < 0.0005) {
+    return cropInvertUpscale(src, 0, 0, W, Math.round(H * 0.40));
   }
 
-  // Expand up/down while score stays above 25% of peak
-  const thresh = scores[peakY] * 0.25;
-  let topRow = peakY, bottomRow = peakY;
-  while (topRow > 0        && scores[topRow - 1]    >= thresh) topRow--;
-  while (bottomRow < H - 1 && scores[bottomRow + 1] >= thresh) bottomRow++;
+  // Expand band while score stays above 20% of peak
+  const thresh = scores[peakY] * 0.20;
+  let top = peakY, bottom = peakY;
+  while (top > 0         && scores[top - 1]    >= thresh) top--;
+  while (bottom < H - 1  && scores[bottom + 1] >= thresh) bottom++;
 
-  // Padding
-  topRow    = Math.max(0,     topRow    - 12);
-  bottomRow = Math.min(H - 1, bottomRow + 12);
+  // Vertical padding
+  top    = Math.max(0,     top    - 15);
+  bottom = Math.min(H - 1, bottom + 15);
 
-  // ── Find horizontal extent of the dark+bright content ─────────────────────
+  // ── Find horizontal extent using strict thresholds ────────────────────────
+  // Only use TRUE BLACK pixels for column bounds — these are the digit window frame
   let leftCol = W, rightCol = 0;
-  for (let y = topRow; y <= bottomRow; y++) {
+  for (let y = top; y <= bottom; y++) {
     for (let x = 0; x < W; x++) {
       const l = lum(x, y);
-      if (l < 65 || l > 175) {
+      if (l < TRUE_BLACK || l > TRUE_WHITE) {
         if (x < leftCol) leftCol = x;
         if (x > rightCol) rightCol = x;
       }
@@ -200,36 +200,32 @@ function isolateDigitWindow(src: HTMLCanvasElement): HTMLCanvasElement {
   }
   if (leftCol >= rightCol) { leftCol = 0; rightCol = W; }
 
-  leftCol  = Math.max(0,     leftCol  - 12);
-  rightCol = Math.min(W - 1, rightCol + 12);
+  // Horizontal padding
+  leftCol  = Math.max(0,     leftCol  - 15);
+  rightCol = Math.min(W - 1, rightCol + 15);
 
-  return cropInvertUpscale(src, leftCol, topRow, rightCol - leftCol, bottomRow - topRow);
+  return cropInvertUpscale(src, leftCol, top, rightCol - leftCol, bottom - top);
 }
 
-// Fallback: just take the top 35%
-function fallbackCrop(src: HTMLCanvasElement, W: number, H: number): HTMLCanvasElement {
-  return cropInvertUpscale(src, 0, 0, W, Math.round(H * 0.35));
-}
-
-// Crop → upscale 4× → invert colours (white digits become black for OCR)
+// Crop the region, upscale 4×, invert (white digits → black for OCR)
 function cropInvertUpscale(
   src: HTMLCanvasElement,
   x: number, y: number, w: number, h: number
 ): HTMLCanvasElement {
   const out = document.createElement("canvas");
-  out.width  = w * 4;
-  out.height = h * 4;
+  out.width  = Math.max(w * 4, 400);
+  out.height = Math.max(h * 4, 100);
   const octx = out.getContext("2d")!;
   octx.imageSmoothingEnabled = true;
   octx.imageSmoothingQuality = "high";
   octx.drawImage(src, x, y, w, h, 0, 0, out.width, out.height);
 
+  // Invert: white digits on black → black digits on white (OCR needs this)
   const img = octx.getImageData(0, 0, out.width, out.height);
-  const od = img.data;
-  for (let i = 0; i < od.length; i += 4) {
-    od[i]     = 255 - od[i];
-    od[i + 1] = 255 - od[i + 1];
-    od[i + 2] = 255 - od[i + 2];
+  for (let i = 0; i < img.data.length; i += 4) {
+    img.data[i]     = 255 - img.data[i];
+    img.data[i + 1] = 255 - img.data[i + 1];
+    img.data[i + 2] = 255 - img.data[i + 2];
   }
   octx.putImageData(img, 0, 0);
   return out;
@@ -260,35 +256,34 @@ async function ocrSpace(base64: string): Promise<number | null> {
   return parseMeterText(text);
 }
 
-// ── Parse: find 6-digit sequence, drop last (red drum) ───────────────────────
+// ── Parse OCR → meter reading ─────────────────────────────────────────────────
 
 function parseMeterText(raw: string): number | null {
   if (!raw) return null;
 
-  // Collapse space-separated digits: "0 0 6 1 3 5" → "006135"
+  // Collapse spaces between digits: "0 0 6 1 8 6" → "006186"
   let t = raw;
-  for (let i = 0; i < 7; i++) t = t.replace(/(\d) (\d)/g, "$1$2");
+  for (let i = 0; i < 8; i++) t = t.replace(/(\d) (\d)/g, "$1$2");
 
   const seqs = t.match(/\d+/g) ?? [];
 
-  // Priority 1: exactly 6 digits → drop last = reading
+  // 6 digits → drop last (red drum) → reading
   const six = seqs.find(s => s.length === 6);
   if (six) return parseInt(six.slice(0, -1), 10);
 
-  // Priority 2: 7 digits → take first 6 → drop last
+  // 7 digits (OCR added 1 stray) → take first 6 → drop last
   const seven = seqs.find(s => s.length === 7);
   if (seven) return parseInt(seven.slice(0, 6).slice(0, -1), 10);
 
-  // Priority 3: 5 digits → already without red digit
+  // 5 digits (red digit was already excluded or misread)
   const five = seqs
     .filter(s => s.length === 5)
     .sort((a, b) => (a.startsWith("0") ? -1 : 1))[0];
   if (five) return parseInt(five, 10);
 
-  // Priority 4: longest sequence ≥ 4
-  const best = seqs.filter(s => s.length >= 4)
-                   .sort((a, b) => b.length - a.length)[0];
-  if (best) return parseInt(best.slice(0, Math.min(best.length, 5)), 10);
+  // 4 digits fallback
+  const four = seqs.find(s => s.length === 4);
+  if (four) return parseInt(four, 10);
 
   return null;
 }
