@@ -129,10 +129,14 @@ function isolateDigitWindow(src: HTMLCanvasElement): HTMLCanvasElement {
     return 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
   };
 
-  const scanLimit = Math.floor(H * 0.65);
+  // Digit display band sits roughly 15%–45% from top in full meter photos.
+  // Restrict scoring to this band so we lock onto the digit row and ignore
+  // header labels ("AC Single Phase…") and the brand name below.
+  const scanStart = Math.floor(H * 0.15);
+  const scanEnd = Math.floor(H * 0.45);
   const scores = new Float32Array(H);
 
-  for (let y = 0; y < scanLimit; y++) {
+  for (let y = scanStart; y < scanEnd; y++) {
     let black = 0, white = 0;
     let firstWhite = W, lastWhite = -1;
     for (let x = 0; x < W; x++) {
@@ -154,7 +158,14 @@ function isolateDigitWindow(src: HTMLCanvasElement): HTMLCanvasElement {
   for (let y = 1; y < H; y++) if (scores[y] > scores[peakY]) peakY = y;
 
   if (scores[peakY] < 0.0005) {
-    return cropInvertUpscale(src, 0, 0, W, Math.round(H * 0.40));
+    // Fallback: hard-crop the expected digit band (15%–45% vertical, 5%–85% horizontal).
+    return cropInvertUpscale(
+      src,
+      Math.round(W * 0.05),
+      Math.round(H * 0.15),
+      Math.round(W * 0.80),
+      Math.round(H * 0.30),
+    );
   }
 
   const thresh = scores[peakY] * 0.20;
