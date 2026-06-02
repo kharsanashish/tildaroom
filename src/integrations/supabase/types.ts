@@ -193,10 +193,41 @@ export type Database = {
         }
         Relationships: []
       }
+      push_subscriptions: {
+        Row: {
+          auth: string
+          created_at: string
+          endpoint: string
+          id: string
+          p256dh: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          auth: string
+          created_at?: string
+          endpoint: string
+          id?: string
+          p256dh: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          auth?: string
+          created_at?: string
+          endpoint?: string
+          id?: string
+          p256dh?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       settings: {
         Row: {
           electricity_rate_per_unit: number
           id: number
+          owner_id: string | null
           owner_mobile: string
           owner_name: string
           owner_upi_id: string
@@ -205,6 +236,7 @@ export type Database = {
         Insert: {
           electricity_rate_per_unit?: number
           id?: number
+          owner_id?: string | null
           owner_mobile?: string
           owner_name?: string
           owner_upi_id?: string
@@ -213,6 +245,7 @@ export type Database = {
         Update: {
           electricity_rate_per_unit?: number
           id?: number
+          owner_id?: string | null
           owner_mobile?: string
           owner_name?: string
           owner_upi_id?: string
