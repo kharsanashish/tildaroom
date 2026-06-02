@@ -28,7 +28,7 @@ import {
 import { getRateFor, hasRateFor } from "@/lib/rates";
 import { exportReadingPdf } from "@/lib/pdf";
 import { subscribePush, sendPush } from "@/lib/push";
-import { MeterCaptureButton } from "@/components/meter-capture-button";
+
 
 export const Route = createFileRoute("/tenant")({
   component: () => (
