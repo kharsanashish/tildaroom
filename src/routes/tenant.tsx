@@ -440,7 +440,6 @@ function TenantDashboard() {
                     {rateSet && status !== "paid" && status !== "pending_approval" && (
                       <MeterCaptureButton
                         onReading={(v) => setCurrInput(String(v))}
-                        disabled={status === "paid" || status === "pending_approval"}
                       />
                     )}
                   </div>
