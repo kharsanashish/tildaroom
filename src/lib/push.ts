@@ -37,19 +37,23 @@ export async function subscribePush(userId: string): Promise<boolean> {
     if (!sub) {
       sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) as BufferSource,
       });
     }
 
     const json = sub.toJSON();
+    if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) {
+      console.warn("Push subscription missing required fields");
+      return false;
+    }
 
     // Upsert into Supabase — one row per user
     const { error } = await supabase.from("push_subscriptions").upsert(
       {
         user_id: userId,
         endpoint: json.endpoint,
-        p256dh: json.keys?.p256dh,
-        auth: json.keys?.auth,
+        p256dh: json.keys.p256dh,
+        auth: json.keys.auth,
         updated_at: new Date().toISOString(),
       },
       { onConflict: "user_id" }
