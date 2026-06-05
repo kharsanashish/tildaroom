@@ -16,7 +16,7 @@ function normalizeUsername(input: string) {
 
 /** Public check: does an owner account exist yet? Used to gate /setup. */
 export const ownerExists = createServerFn({ method: "GET" }).handler(async () => {
-  const sb = admin();
+  const sb = await admin();
   const { count, error } = await sb
     .from("user_roles")
     .select("user_id", { count: "exact", head: true })
@@ -35,7 +35,7 @@ const createOwnerSchema = z.object({
 export const createOwner = createServerFn({ method: "POST" })
   .inputValidator((d) => createOwnerSchema.parse(d))
   .handler(async ({ data }) => {
-    const sb = admin();
+    const sb = await admin();
     const { count } = await sb
       .from("user_roles")
       .select("user_id", { count: "exact", head: true })
@@ -86,7 +86,7 @@ export const createTenant = createServerFn({ method: "POST" })
       .maybeSingle();
     if (!roles) throw new Error("Only the owner can create tenants");
 
-    const sb = admin();
+    const sb = await admin();
     const username = normalizeUsername(data.username);
     if (username.length < 3) return { ok: false, error: "Invalid username" };
     const email = `${username}@${TENANT_DOMAIN}`;
@@ -134,7 +134,7 @@ export const deleteTenant = createServerFn({ method: "POST" })
       .from("user_roles").select("role").eq("user_id", context.userId).eq("role", "owner").maybeSingle();
     if (!roles) throw new Error("Only the owner can delete tenants");
 
-    const sb = admin();
+    const sb = await admin();
     await sb.from("flats").update({ tenant_id: null }).eq("tenant_id", data.tenantId);
     const { error } = await sb.auth.admin.deleteUser(data.tenantId);
     if (error) return { ok: false, error: error.message };
