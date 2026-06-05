@@ -259,6 +259,33 @@ export type Database = {
         }
         Relationships: []
       }
+      tenant_documents: {
+        Row: {
+          document_type: string
+          file_path: string
+          file_url: string
+          id: string
+          tenant_id: string
+          uploaded_at: string
+        }
+        Insert: {
+          document_type: string
+          file_path: string
+          file_url: string
+          id?: string
+          tenant_id: string
+          uploaded_at?: string
+        }
+        Update: {
+          document_type?: string
+          file_path?: string
+          file_url?: string
+          id?: string
+          tenant_id?: string
+          uploaded_at?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
