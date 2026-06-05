@@ -28,7 +28,7 @@ import {
 import { getRateFor, hasRateFor } from "@/lib/rates";
 import { exportReadingPdf } from "@/lib/pdf";
 import { subscribePush, sendPush } from "@/lib/push";
-
+import { MeterCaptureButton } from "@/components/meter-capture-button";
 
 export const Route = createFileRoute("/tenant")({
   component: () => (
@@ -41,7 +41,7 @@ export const Route = createFileRoute("/tenant")({
 interface Flat {
   id: string; flat_number: string; rent: number; maintenance: number;
   other_charges: number; prev_meter_reading: number; tenant_name: string;
-  tenant_whatsapp: string;
+  tenant_whatsapp: string; is_vacant?: boolean;
 }
 interface Reading {
   id: string; flat_id: string; month: number; year: number;
@@ -50,6 +50,7 @@ interface Reading {
   maintenance: number; other_charges: number; opening_balance: number;
   total_due: number; amount_paid: number; payment_status: PaymentStatus;
   payment_method: string | null; payment_timestamp: string | null;
+  source?: string;
 }
 interface Settings {
   owner_upi_id: string; owner_name: string; owner_mobile: string; owner_id?: string;
@@ -143,7 +144,7 @@ function TenantDashboard() {
 
   const saveReading = async () => {
     if (!flat) return;
-    if (!rateSet) return toast.error("Owner has not set this month's unit price yet");
+    if (!rateSet || monthRate === 0) return toast.error("Owner has not set this month's unit price yet");
     const v = Number(currInput);
     if (!v || v < prevReading) return toast.error(`Reading must be ≥ ${prevReading}`);
     setSaving(true);
@@ -325,6 +326,10 @@ function TenantDashboard() {
   const status: PaymentStatus = current?.payment_status ?? "pending";
   const canPay = status === "pending" || status === "rejected" || status === "partial";
   const readingSubmitted = !!(current && current.curr_reading != null);
+  // Lock reading input if owner has already filled it or rate is zero/unset
+  const ownerFilled = current?.source === "owner";
+  const rateLocked  = !rateSet || monthRate === 0;
+  const isVacant    = flat.is_vacant ?? false;
 
   return (
     <div className="min-h-screen bg-background pb-20">
@@ -404,43 +409,69 @@ function TenantDashboard() {
                 <Zap className="h-5 w-5 text-warning" />
                 <h3 className="font-semibold">बिजली रीडिंग / Meter Reading</h3>
               </div>
-              {!rateSet && (
+
+              {/* Vacant flat */}
+              {isVacant && (
+                <div className="rounded-md border border-muted p-3 text-sm text-muted-foreground text-center">
+                  This flat is currently marked as vacant. No charges apply.
+                </div>
+              )}
+
+              {/* Owner already filled the reading */}
+              {!isVacant && ownerFilled && (
+                <div className="mb-3 rounded-md border border-info/40 bg-info/10 p-2 text-xs">
+                  Reading entered by owner — locked for editing.
+                </div>
+              )}
+
+              {/* Rate not set or zero */}
+              {!isVacant && !ownerFilled && rateLocked && (
                 <div className="mb-3 rounded-md border border-warning/40 bg-warning/10 p-2 text-xs text-warning-foreground">
-                  Owner has not set this month's unit price yet. Reading is locked.
+                  Owner has not set this month's electricity rate yet. Reading is locked.
                   You can still pay rent / dues below.
                 </div>
               )}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label className="text-xs">Previous</Label>
-                  <Input value={prevReading} readOnly className="bg-muted" />
-                </div>
-                <div>
-                  <Label className="text-xs">
-                    Current{" "}
-                    {current && current.curr_reading != null && "(saved)"}
-                  </Label>
-                  <div className="flex gap-1">
-                    <Input
-                      value={
-                        current && current.curr_reading != null
-                          ? String(current.curr_reading)
-                          : currInput
-                      }
-                      onChange={(e) => setCurrInput(e.target.value)}
-                      type="number"
-                      inputMode="numeric"
-                      disabled={
-                        !rateSet ||
-                        status === "paid" ||
-                        status === "pending_approval"
-                      }
-                      placeholder={rateSet ? "Enter reading" : "Locked"}
-                    />
+
+              {!isVacant && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs">Previous</Label>
+                    <Input value={prevReading} readOnly className="bg-muted" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">
+                      Current{" "}
+                      {current && current.curr_reading != null && "(saved)"}
+                    </Label>
+                    <div className="flex gap-1">
+                      <Input
+                        value={
+                          current && current.curr_reading != null
+                            ? String(current.curr_reading)
+                            : currInput
+                        }
+                        onChange={(e) => setCurrInput(e.target.value)}
+                        type="number"
+                        inputMode="numeric"
+                        disabled={
+                          rateLocked ||
+                          ownerFilled ||
+                          status === "paid" ||
+                          status === "pending_approval"
+                        }
+                        placeholder={rateLocked ? "Locked — rate not set" : ownerFilled ? "Filled by owner" : "Enter reading"}
+                      />
+                      {!rateLocked && !ownerFilled && status !== "paid" && status !== "pending_approval" && (
+                        <MeterCaptureButton
+                          onReading={(v) => setCurrInput(String(v))}
+                          disabled={rateLocked || ownerFilled}
+                        />
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-              {rateSet && status !== "paid" && status !== "pending_approval" && (
+              )}
+              {!isVacant && !rateLocked && !ownerFilled && status !== "paid" && status !== "pending_approval" && (
                 <Button
                   onClick={saveReading}
                   disabled={saving || !currInput}
@@ -492,11 +523,11 @@ function TenantDashboard() {
               </div>
             </Card>
 
-            {canPay && !rateSet && (
+            {!isVacant && canPay && rateLocked && (
               <Card className="p-4 space-y-3">
                 <h3 className="font-semibold text-sm">भुगतान / Payment (Manual amount)</h3>
                 <p className="text-[11px] text-muted-foreground">
-                  Owner has not set this month's unit price. Enter the amount you
+                  Owner has not set this month's electricity rate. Enter the amount you
                   want to pay. Electricity will be billed once owner sets the rate.
                 </p>
                 <div>
@@ -529,7 +560,7 @@ function TenantDashboard() {
               </Card>
             )}
 
-            {canPay && rateSet && !readingSubmitted && (
+            {!isVacant && canPay && !rateLocked && !readingSubmitted && (
               <Card className="p-4 text-center space-y-2 border-dashed">
                 <h3 className="font-semibold text-sm">भुगतान विकल्प / Payment Options</h3>
                 <p className="text-xs text-muted-foreground">
@@ -538,7 +569,7 @@ function TenantDashboard() {
               </Card>
             )}
 
-            {current && canPay && rateSet && readingSubmitted && (
+            {!isVacant && current && canPay && !rateLocked && readingSubmitted && (
               <Card className="p-4 space-y-3">
                 <h3 className="font-semibold text-sm">भुगतान विकल्प / Payment Options</h3>
 
