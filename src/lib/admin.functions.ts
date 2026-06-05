@@ -135,6 +135,18 @@ export const deleteTenant = createServerFn({ method: "POST" })
     if (!roles) throw new Error("Only the owner can delete tenants");
 
     const sb = await admin();
+
+    // Cleanup tenant document vault: storage files + DB rows (incl. any orphans in that folder).
+    const { data: files } = await sb.storage
+      .from("tenant-documents")
+      .list(data.tenantId, { limit: 1000 });
+    if (files && files.length > 0) {
+      await sb.storage
+        .from("tenant-documents")
+        .remove(files.map((f) => `${data.tenantId}/${f.name}`));
+    }
+    await sb.from("tenant_documents").delete().eq("tenant_id", data.tenantId);
+
     await sb.from("flats").update({ tenant_id: null }).eq("tenant_id", data.tenantId);
     const { error } = await sb.auth.admin.deleteUser(data.tenantId);
     if (error) return { ok: false, error: error.message };
