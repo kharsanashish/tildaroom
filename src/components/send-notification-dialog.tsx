@@ -5,7 +5,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Bell, Loader2, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import { sendPush } from "@/lib/push";
@@ -86,13 +85,13 @@ export function SendNotificationDialog({ flats }: { flats: Flat[] }) {
 
           <div>
             <Label className="text-xs">Message *</Label>
-            <Textarea
+            <textarea
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               placeholder="Type your message here..."
               rows={4}
               maxLength={300}
-              className="resize-none"
+              className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
             />
             <div className="text-[10px] text-muted-foreground text-right mt-1">
               {message.length}/300
