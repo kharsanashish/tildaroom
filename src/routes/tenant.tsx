@@ -517,12 +517,18 @@ function TenantDashboard() {
               </div>
             </Card>
 
-            {!isVacant && canPay && rateLocked && (
+            {!isVacant && canPay && (rateLocked || !readingSubmitted) && (
               <Card className="p-4 space-y-3">
-                <h3 className="font-semibold text-sm">भुगतान / Payment (Manual amount)</h3>
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold text-sm">भुगतान / Payment</h3>
+                  <Badge variant="secondary" className="text-[10px]">
+                    <Wallet className="h-3 w-3 mr-1" /> Partial Payment
+                  </Badge>
+                </div>
                 <p className="text-[11px] text-muted-foreground">
-                  Owner has not set this month's electricity rate. Enter the amount you
-                  want to pay. Electricity will be billed once owner sets the rate.
+                  {rateLocked
+                    ? "Owner has not set this month's electricity rate. Enter the amount you want to pay. Electricity will be billed once owner sets the rate."
+                    : "Submit your meter reading to unlock Full Payment. Until then, you can make a partial payment."}
                 </p>
                 <div>
                   <Label className="text-xs">Amount ₹</Label>
@@ -551,15 +557,6 @@ function TenantDashboard() {
                     <Banknote className="h-4 w-4 mr-1" /> Cash
                   </Button>
                 </div>
-              </Card>
-            )}
-
-            {!isVacant && canPay && !rateLocked && !readingSubmitted && (
-              <Card className="p-4 text-center space-y-2 border-dashed">
-                <h3 className="font-semibold text-sm">भुगतान विकल्प / Payment Options</h3>
-                <p className="text-xs text-muted-foreground">
-                  🔒 Submit your current meter reading above to unlock payment options.
-                </p>
               </Card>
             )}
 
