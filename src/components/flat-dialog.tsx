@@ -10,6 +10,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
 import { createTenant, deleteTenant } from "@/lib/admin.functions";
+import { DocumentVault } from "@/components/document-vault";
+import { FolderLock } from "lucide-react";
 
 interface Flat {
   id: string;
