@@ -23,7 +23,8 @@ import { FlatDialog } from "@/components/flat-dialog";
 import { SettingsDialog } from "@/components/settings-dialog";
 import { ApprovalsList } from "@/components/approvals-list";
 import { HistoryView } from "@/components/history-view";
-import { CollectionHistoryDialog } from "@/components/collection-history";
+import { SendNotificationDialog } from "@/components/send-notification-dialog";
+import { SendNotificationDialog } from "@/components/send-notification-dialog";
 
 export const Route = createFileRoute("/owner")({
   component: () => (
@@ -45,6 +46,7 @@ interface Flat {
   other_charges: number;
   prev_meter_reading: number;
   security_deposit: number;
+  is_vacant?: boolean;
 }
 interface Reading {
   id: string;
@@ -117,10 +119,11 @@ function OwnerDashboard() {
     [readings, month, year],
   );
 
-  // Stats: Expected / Collected / Pending from current month tenant data
+  // Stats: Expected / Collected / Pending — skip vacant flats
   const stats = useMemo(() => {
     let expected = 0, collected = 0, pending = 0;
     for (const f of flats) {
+      if (f.is_vacant) continue; // vacant flat contributes ₹0
       const r = currentReadings.find((x) => x.flat_id === f.id);
       if (r) {
         expected += Number(r.total_due);
@@ -140,10 +143,10 @@ function OwnerDashboard() {
     return { expected, collected, pending };
   }, [flats, currentReadings]);
 
-  // Flats that haven't submitted a reading this month (for "Remind All" banner)
+  // Flats that haven't submitted a reading (skip vacant)
   const unreadFlats = useMemo(
     () => flats.filter(
-      (f) => !currentReadings.some((r) => r.flat_id === f.id) && f.tenant_whatsapp
+      (f) => !f.is_vacant && !currentReadings.some((r) => r.flat_id === f.id) && f.tenant_whatsapp
     ),
     [flats, currentReadings],
   );
@@ -179,12 +182,7 @@ function OwnerDashboard() {
             </div>
           </div>
           <div className="flex gap-1">
-            <CollectionHistoryDialog
-              readings={readings}
-              flats={flats}
-              ownerName={settings?.owner_name}
-              ownerMobile={settings?.owner_mobile}
-            />
+            <SendNotificationDialog flats={flats} />
             <RatesManager onChange={refresh} />
             <SettingsDialog
               settings={settings!}
