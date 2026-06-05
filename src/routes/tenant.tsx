@@ -28,7 +28,7 @@ import {
 import { getRateFor, hasRateFor } from "@/lib/rates";
 import { exportReadingPdf } from "@/lib/pdf";
 import { subscribePush, sendPush } from "@/lib/push";
-import { MeterCaptureButton } from "@/components/meter-capture-button";
+
 
 export const Route = createFileRoute("/tenant")({
   component: () => (
@@ -461,12 +461,6 @@ function TenantDashboard() {
                         }
                         placeholder={rateLocked ? "Locked — rate not set" : ownerFilled ? "Filled by owner" : "Enter reading"}
                       />
-                      {!rateLocked && !ownerFilled && status !== "paid" && status !== "pending_approval" && (
-                        <MeterCaptureButton
-                          onReading={(v) => setCurrInput(String(v))}
-                          disabled={rateLocked || ownerFilled}
-                        />
-                      )}
                     </div>
                   </div>
                 </div>

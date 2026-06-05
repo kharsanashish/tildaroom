@@ -43,6 +43,7 @@ export type Database = {
           created_at: string
           flat_number: string
           id: string
+          is_vacant: boolean
           last_reviewed_year: number | null
           maintenance: number
           other_charges: number
@@ -59,6 +60,7 @@ export type Database = {
           created_at?: string
           flat_number: string
           id?: string
+          is_vacant?: boolean
           last_reviewed_year?: number | null
           maintenance?: number
           other_charges?: number
@@ -75,6 +77,7 @@ export type Database = {
           created_at?: string
           flat_number?: string
           id?: string
+          is_vacant?: boolean
           last_reviewed_year?: number | null
           maintenance?: number
           other_charges?: number
@@ -107,6 +110,7 @@ export type Database = {
           prev_reading: number
           rate_per_unit: number
           rent: number
+          source: string
           total_due: number
           units: number
           updated_at: string
@@ -129,6 +133,7 @@ export type Database = {
           prev_reading?: number
           rate_per_unit?: number
           rent?: number
+          source?: string
           total_due?: number
           units?: number
           updated_at?: string
@@ -151,6 +156,7 @@ export type Database = {
           prev_reading?: number
           rate_per_unit?: number
           rent?: number
+          source?: string
           total_due?: number
           units?: number
           updated_at?: string

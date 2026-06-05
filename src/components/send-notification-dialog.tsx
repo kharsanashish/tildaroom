@@ -14,7 +14,7 @@ interface Flat {
   flat_number: string;
   tenant_name: string;
   tenant_id: string | null;
-  is_vacant: boolean;
+  is_vacant?: boolean;
 }
 
 export function SendNotificationDialog({ flats }: { flats: Flat[] }) {
