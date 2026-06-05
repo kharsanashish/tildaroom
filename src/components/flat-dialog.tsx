@@ -246,6 +246,20 @@ export function FlatDialog({
               />
             </div>
           </div>
+
+          {flat?.tenant_id && (
+            <div className="pt-2 border-t">
+              <DocumentVault
+                tenantId={flat.tenant_id}
+                tenantName={flat.tenant_name || `Flat ${flat.flat_number}`}
+                trigger={
+                  <Button variant="outline" className="w-full">
+                    <FolderLock className="h-4 w-4 mr-1" /> Document Vault
+                  </Button>
+                }
+              />
+            </div>
+          )}
         </div>
         <DialogFooter className="gap-2 sm:gap-2">
           {flat && (
