@@ -562,7 +562,17 @@ function TenantDashboard() {
 
             {!isVacant && current && canPay && !rateLocked && readingSubmitted && (
               <Card className="p-4 space-y-3">
-                <h3 className="font-semibold text-sm">भुगतान विकल्प / Payment Options</h3>
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <h3 className="font-semibold text-sm">भुगतान विकल्प / Payment Options</h3>
+                  <div className="flex gap-1">
+                    <Badge className="text-[10px] bg-success text-success-foreground">
+                      Full Payment
+                    </Badge>
+                    <Badge variant="secondary" className="text-[10px]">
+                      <Wallet className="h-3 w-3 mr-1" /> Partial Payment
+                    </Badge>
+                  </div>
+                </div>
 
                 <Button
                   onClick={handlePay}
