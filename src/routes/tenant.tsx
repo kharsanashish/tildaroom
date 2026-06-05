@@ -28,6 +28,7 @@ import {
 import { getRateFor, hasRateFor } from "@/lib/rates";
 import { exportReadingPdf } from "@/lib/pdf";
 import { subscribePush, sendPush } from "@/lib/push";
+import { DocumentVault } from "@/components/document-vault";
 
 
 export const Route = createFileRoute("/tenant")({
