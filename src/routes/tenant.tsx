@@ -353,9 +353,14 @@ function TenantDashboard() {
               </div>
             </div>
           </div>
-          <Button size="sm" variant="ghost" onClick={signOut}>
-            <LogOut className="h-4 w-4" />
-          </Button>
+          <div className="flex items-center gap-1">
+            {user?.id && (
+              <DocumentVault tenantId={user.id} tenantName={flat.tenant_name} />
+            )}
+            <Button size="sm" variant="ghost" onClick={signOut}>
+              <LogOut className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </header>
 
