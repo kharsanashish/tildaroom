@@ -24,7 +24,6 @@ import { SettingsDialog } from "@/components/settings-dialog";
 import { ApprovalsList } from "@/components/approvals-list";
 import { HistoryView } from "@/components/history-view";
 import { SendNotificationDialog } from "@/components/send-notification-dialog";
-import { SendNotificationDialog } from "@/components/send-notification-dialog";
 
 export const Route = createFileRoute("/owner")({
   component: () => (
