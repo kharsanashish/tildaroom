@@ -1,7 +1,7 @@
 // supabase/functions/send-push/index.ts
 // Deno Edge Function — sends a Web Push notification to a user's browser.
 // Deploy: supabase functions deploy send-push
-// Secrets: supabase secrets set VAPID_PUBLIC_KEY=... VAPID_PRIVATE_KEY=... VAPID_SUBJECT=mailto:owner@example.com
+// Secrets: VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, optional VAPID_SUBJECT email/URL
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 // @ts-ignore — Deno npm: specifier
@@ -11,7 +11,8 @@ const SUPABASE_URL     = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const VAPID_PUBLIC     = Deno.env.get("VAPID_PUBLIC_KEY")!;
 const VAPID_PRIVATE    = Deno.env.get("VAPID_PRIVATE_KEY")!;
-const VAPID_SUBJECT    = Deno.env.get("VAPID_SUBJECT") ?? "mailto:admin@tildaroom.app";
+const rawVapidSubject  = Deno.env.get("VAPID_SUBJECT") ?? "admin@tildaroom.app";
+const VAPID_SUBJECT    = rawVapidSubject.includes(":") ? rawVapidSubject : `mailto:${rawVapidSubject}`;
 
 webPush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC, VAPID_PRIVATE);
 
