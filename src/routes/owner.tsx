@@ -145,7 +145,7 @@ function OwnerDashboard() {
   // Flats that haven't submitted a reading (skip vacant)
   const unreadFlats = useMemo(
     () => flats.filter(
-      (f) => !f.is_vacant && !currentReadings.some((r) => r.flat_id === f.id) && f.tenant_whatsapp
+      (f) => !f.is_vacant && !currentReadings.some((r) => r.flat_id === f.id) && (f.tenant_id || f.tenant_whatsapp)
     ),
     [flats, currentReadings],
   );
@@ -241,6 +241,7 @@ function OwnerDashboard() {
                   <div className="flex flex-wrap gap-2">
                     {unreadFlats.map((f) => {
                       const msg = `Hi ${f.tenant_name || "Tenant"}, please submit your meter reading for ${monthLabel(month, year)}.`;
+                      const hasAccount = !!f.tenant_id;
                       const wa = f.tenant_whatsapp.replace(/\D/g, "");
                       return (
                         <Button
@@ -248,15 +249,30 @@ function OwnerDashboard() {
                           size="sm"
                           variant="outline"
                           className="h-7 text-xs border-warning/50"
-                          asChild
+                          onClick={async () => {
+                            if (hasAccount) {
+                              await sendPush({
+                                toUserId: f.tenant_id!,
+                                title: "Meter Reading Reminder",
+                                body: msg,
+                                url: "/tenant",
+                                tag: "reading-reminder",
+                              });
+                              toast.success(`Push reminder sent to Flat ${f.flat_number}`);
+                            } else if (wa) {
+                              window.open(
+                                `https://wa.me/91${wa}?text=${encodeURIComponent(msg)}`,
+                                "_blank",
+                                "noopener,noreferrer",
+                              );
+                            } else {
+                              toast.error("No tenant account or WhatsApp number");
+                            }
+                          }}
+                          title={hasAccount ? "Send browser push notification" : "Send WhatsApp reminder"}
                         >
-                          <a
-                            href={`https://wa.me/91${wa}?text=${encodeURIComponent(msg)}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            Remind Flat {f.flat_number}
-                          </a>
+                          <Bell className="h-3 w-3 mr-1" />
+                          Remind Flat {f.flat_number}
                         </Button>
                       );
                     })}
