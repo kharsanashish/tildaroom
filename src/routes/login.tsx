@@ -74,17 +74,17 @@ function Login() {
             <Building2 className="h-8 w-8 text-primary-foreground" />
           </div>
           <h1 className="text-2xl font-bold tracking-tight">Rent Manager</h1>
-          <p className="text-sm text-muted-foreground mt-1">किराया प्रबंधन / Flat Rent Management</p>
+          <p className="text-sm text-muted-foreground mt-1">Flat Rent Management</p>
         </div>
 
         <Card className="p-6 shadow-lg" style={{ boxShadow: "var(--shadow-elevated)" }}>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <Label htmlFor="identifier">यूज़रनेम या ईमेल / Username or Email</Label>
+              <Label htmlFor="identifier">Username or Email</Label>
               <Input
                 id="identifier"
                 type="text"
-                placeholder="owner@example.com or tenant_username"
+                placeholder="Enter your username or email"
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
                 autoComplete="username"
@@ -93,7 +93,7 @@ function Login() {
               />
             </div>
             <div>
-              <Label htmlFor="password">पासवर्ड / Password</Label>
+              <Label htmlFor="password">Password</Label>
               <Input
                 id="password"
                 type="password"
@@ -104,7 +104,7 @@ function Login() {
               />
             </div>
             <Button type="submit" className="w-full h-11 text-base" disabled={submitting}>
-              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "लॉगिन / Sign in"}
+              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Sign in"}
             </Button>
           </form>
           <p className="text-xs text-muted-foreground mt-4 text-center">
