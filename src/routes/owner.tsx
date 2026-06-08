@@ -145,7 +145,7 @@ function OwnerDashboard() {
   // Flats that haven't submitted a reading (skip vacant)
   const unreadFlats = useMemo(
     () => flats.filter(
-      (f) => !f.is_vacant && !currentReadings.some((r) => r.flat_id === f.id) && f.tenant_whatsapp
+      (f) => !f.is_vacant && !currentReadings.some((r) => r.flat_id === f.id) && (f.tenant_id || f.tenant_whatsapp)
     ),
     [flats, currentReadings],
   );
