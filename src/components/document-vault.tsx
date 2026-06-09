@@ -37,10 +37,12 @@ export function DocumentVault({
   tenantId,
   tenantName,
   trigger,
+  role = "owner",
 }: {
   tenantId: string;
   tenantName?: string;
   trigger?: React.ReactNode;
+  role?: "owner" | "tenant";
 }) {
   const [open, setOpen] = useState(false);
   const [rows, setRows] = useState<DocRow[]>([]);
@@ -183,9 +185,11 @@ export function DocumentVault({
                           <Button size="sm" variant="outline" onClick={() => inputsRef.current[inputId]?.click()} disabled={busy}>
                             {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
                           </Button>
-                          <Button size="sm" variant="ghost" onClick={() => setConfirmDelete(row)} disabled={busy} className="text-destructive">
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
+                          {role !== "tenant" && (
+                            <Button size="sm" variant="ghost" onClick={() => setConfirmDelete(row)} disabled={busy} className="text-destructive">
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
                         </>
                       ) : (
                         <Button size="sm" onClick={() => inputsRef.current[inputId]?.click()} disabled={busy}>
