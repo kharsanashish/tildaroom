@@ -68,7 +68,7 @@ export async function subscribePush(userId: string): Promise<boolean> {
       return false;
     }
 
-    // Upsert into Supabase — one row per user
+    // Upsert into Supabase — one row per browser subscription
     const { error } = await supabase.from("push_subscriptions").upsert(
       {
         user_id: userId,
@@ -77,7 +77,7 @@ export async function subscribePush(userId: string): Promise<boolean> {
         auth: json.keys.auth,
         updated_at: new Date().toISOString(),
       },
-      { onConflict: "user_id" }
+      { onConflict: "endpoint" }
     );
 
     if (error) console.warn("Failed to store push subscription:", error.message);
@@ -93,8 +93,13 @@ export async function unsubscribePush(userId: string): Promise<void> {
   try {
     const reg = await navigator.serviceWorker.ready;
     const sub = await reg.pushManager.getSubscription();
-    if (sub) await sub.unsubscribe();
-    await supabase.from("push_subscriptions").delete().eq("user_id", userId);
+    if (sub) {
+      const endpoint = sub.endpoint;
+      await sub.unsubscribe();
+      await supabase.from("push_subscriptions").delete().eq("endpoint", endpoint);
+    } else {
+      await supabase.from("push_subscriptions").delete().eq("user_id", userId);
+    }
   } catch (e) {
     console.warn("Push unsubscribe failed:", e);
   }
