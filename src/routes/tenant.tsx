@@ -388,7 +388,7 @@ function TenantDashboard() {
               </Button>
             )}
             {user?.id && (
-              <DocumentVault tenantId={user.id} tenantName={flat.tenant_name} />
+              <DocumentVault tenantId={user.id} tenantName={flat.tenant_name} role="tenant" />
             )}
             <Button size="sm" variant="ghost" onClick={signOut}>
               <LogOut className="h-4 w-4" />
