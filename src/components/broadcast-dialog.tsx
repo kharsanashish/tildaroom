@@ -28,19 +28,22 @@ export function BroadcastDialog({ flats }: { flats: Flat[] }) {
     if (tenants.length === 0) return toast.error("No tenants with accounts found.");
     setSending(true);
     let sent = 0;
+    let failed = 0;
     for (const f of tenants) {
       if (!f.tenant_id) continue;
-      await sendPush({
+      const result = await sendPush({
         toUserId: f.tenant_id,
         title: "Message from Owner 🏠",
         body: message.trim(),
         url: "/tenant",
         tag: "broadcast",
       });
-      sent++;
+      if (result.ok) sent++;
+      else failed++;
     }
     setSending(false);
-    toast.success(`Message sent to ${sent} tenant${sent !== 1 ? "s" : ""}.`);
+    if (sent > 0) toast.success(`Message sent to ${sent} tenant${sent !== 1 ? "s" : ""}.`);
+    if (failed > 0) toast.error(`${failed} tenant${failed !== 1 ? "s" : ""} have not enabled notifications yet.`);
     setMessage("");
     setOpen(false);
   };

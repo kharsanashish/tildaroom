@@ -25,6 +25,13 @@ export async function registerSW(): Promise<ServiceWorkerRegistration | null> {
 // ── Subscribe browser to Web Push and store in Supabase ───────────────────
 export async function subscribePush(userId: string): Promise<boolean> {
   if (!("PushManager" in window)) return false;
+  if ("Notification" in window) {
+    const permission =
+      Notification.permission === "default"
+        ? await Notification.requestPermission()
+        : Notification.permission;
+    if (permission !== "granted") return false;
+  }
   if (!VAPID_PUBLIC_KEY) {
     console.warn("VITE_VAPID_PUBLIC_KEY not set — push disabled");
     return false;
@@ -32,12 +39,26 @@ export async function subscribePush(userId: string): Promise<boolean> {
 
   try {
     const reg = await navigator.serviceWorker.ready;
+    const applicationServerKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
     let sub = await reg.pushManager.getSubscription();
+
+    const existingKey = sub?.options.applicationServerKey;
+    if (sub && existingKey) {
+      const existing = new Uint8Array(existingKey);
+      const keyChanged =
+        existing.length !== applicationServerKey.length ||
+        existing.some((value, index) => value !== applicationServerKey[index]);
+
+      if (keyChanged) {
+        await sub.unsubscribe();
+        sub = null;
+      }
+    }
 
     if (!sub) {
       sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) as BufferSource,
+        applicationServerKey: applicationServerKey as BufferSource,
       });
     }
 
@@ -47,7 +68,7 @@ export async function subscribePush(userId: string): Promise<boolean> {
       return false;
     }
 
-    // Upsert into Supabase — one row per user
+    // Upsert into Supabase — one row per browser subscription
     const { error } = await supabase.from("push_subscriptions").upsert(
       {
         user_id: userId,
@@ -56,7 +77,7 @@ export async function subscribePush(userId: string): Promise<boolean> {
         auth: json.keys.auth,
         updated_at: new Date().toISOString(),
       },
-      { onConflict: "user_id" }
+      { onConflict: "endpoint" }
     );
 
     if (error) console.warn("Failed to store push subscription:", error.message);
@@ -72,8 +93,13 @@ export async function unsubscribePush(userId: string): Promise<void> {
   try {
     const reg = await navigator.serviceWorker.ready;
     const sub = await reg.pushManager.getSubscription();
-    if (sub) await sub.unsubscribe();
-    await supabase.from("push_subscriptions").delete().eq("user_id", userId);
+    if (sub) {
+      const endpoint = sub.endpoint;
+      await sub.unsubscribe();
+      await supabase.from("push_subscriptions").delete().eq("endpoint", endpoint);
+    } else {
+      await supabase.from("push_subscriptions").delete().eq("user_id", userId);
+    }
   } catch (e) {
     console.warn("Push unsubscribe failed:", e);
   }
@@ -86,13 +112,29 @@ export async function sendPush(opts: {
   body: string;
   url?: string;
   tag?: string;
-}): Promise<void> {
+}): Promise<{ ok: boolean; error?: string }> {
   try {
-    const { error } = await supabase.functions.invoke("send-push", {
+    const { data, error } = await supabase.functions.invoke("send-push", {
       body: opts,
     });
-    if (error) console.warn("sendPush error:", error.message);
+    if (error) {
+      let message = error.message;
+      const context = (error as { context?: unknown }).context;
+      if (context instanceof Response) {
+        try {
+          const payload = await context.clone().json();
+          if (payload?.error) message = payload.error;
+        } catch {
+          // Keep the original error message.
+        }
+      }
+      console.warn("sendPush error:", message);
+      return { ok: false, error: message };
+    }
+    if (data?.ok) return { ok: true };
+    return { ok: false, error: data?.error ?? "Notification could not be sent" };
   } catch (e) {
     console.warn("sendPush failed:", e);
+    return { ok: false, error: e instanceof Error ? e.message : "Notification request failed" };
   }
 }
