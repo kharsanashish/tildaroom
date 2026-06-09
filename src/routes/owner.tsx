@@ -251,14 +251,18 @@ function OwnerDashboard() {
                           className="h-7 text-xs border-warning/50"
                           onClick={async () => {
                             if (hasAccount) {
-                              await sendPush({
+                              const result = await sendPush({
                                 toUserId: f.tenant_id!,
                                 title: "Meter Reading Reminder",
                                 body: msg,
                                 url: "/tenant",
                                 tag: "reading-reminder",
                               });
-                              toast.success(`Push reminder sent to Flat ${f.flat_number}`);
+                              if (result.ok) {
+                                toast.success(`Push reminder sent to Flat ${f.flat_number}`);
+                              } else {
+                                toast.error(result.error ?? "Tenant has not enabled notifications yet");
+                              }
                             } else if (wa) {
                               window.open(
                                 `https://wa.me/91${wa}?text=${encodeURIComponent(msg)}`,
