@@ -33,42 +33,56 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Look up subscription for the target user
+    // Look up all browser subscriptions for the target user
     const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE);
-    const { data: sub, error } = await admin
+    const { data: subscriptions, error } = await admin
       .from("push_subscriptions")
       .select("endpoint, p256dh, auth")
-      .eq("user_id", toUserId)
-      .maybeSingle();
+      .eq("user_id", toUserId);
 
-    if (error || !sub) {
+    if (error || !subscriptions?.length) {
       return new Response(JSON.stringify({ error: "No subscription found" }), {
         status: 404, headers: { ...cors, "Content-Type": "application/json" },
       });
     }
 
-    const pushSub = {
-      endpoint: sub.endpoint,
-      keys: { p256dh: sub.p256dh, auth: sub.auth },
-    };
-
     const payload = JSON.stringify({ title, body, url, tag, icon: "/favicon.ico" });
-    try {
-      await webPush.sendNotification(pushSub, payload);
-    } catch (error) {
-      const statusCode = typeof error === "object" && error && "statusCode" in error
-        ? Number((error as { statusCode?: number }).statusCode)
-        : 500;
-      if (statusCode === 403 || statusCode === 404 || statusCode === 410) {
-        await admin.from("push_subscriptions").delete().eq("user_id", toUserId);
-        return new Response(JSON.stringify({ error: "Recipient must reopen the app and allow notifications again" }), {
-          status: 409, headers: { ...cors, "Content-Type": "application/json" },
-        });
+    let sent = 0;
+    let stale = 0;
+    let lastError = "Notification could not be sent";
+
+    for (const sub of subscriptions) {
+      const pushSub = {
+        endpoint: sub.endpoint,
+        keys: { p256dh: sub.p256dh, auth: sub.auth },
+      };
+
+      try {
+        await webPush.sendNotification(pushSub, payload);
+        sent++;
+      } catch (error) {
+        const statusCode = typeof error === "object" && error && "statusCode" in error
+          ? Number((error as { statusCode?: number }).statusCode)
+          : 500;
+        if (statusCode === 403 || statusCode === 404 || statusCode === 410) {
+          stale++;
+          await admin.from("push_subscriptions").delete().eq("endpoint", sub.endpoint);
+          continue;
+        }
+        lastError = String(error);
       }
-      throw error;
     }
 
-    return new Response(JSON.stringify({ ok: true }), {
+    if (sent === 0) {
+      const message = stale > 0
+        ? "Recipient must reopen the app and allow notifications again"
+        : lastError;
+      return new Response(JSON.stringify({ error: message }), {
+        status: stale > 0 ? 409 : 500, headers: { ...cors, "Content-Type": "application/json" },
+      });
+    }
+
+    return new Response(JSON.stringify({ ok: true, sent }), {
       headers: { ...cors, "Content-Type": "application/json" },
     });
   } catch (e) {
