@@ -2,6 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
@@ -42,6 +46,7 @@ export function DocumentVault({
   const [rows, setRows] = useState<DocRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [busyType, setBusyType] = useState<DocType | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<DocRow | null>(null);
   const inputsRef = useRef<Record<string, HTMLInputElement | null>>({});
 
   const refresh = async () => {
@@ -103,10 +108,10 @@ export function DocumentVault({
   };
 
   const handleDelete = async (row: DocRow) => {
-    if (!confirm(`Delete ${DOC_META.find(d => d.type === row.document_type)?.label}?`)) return;
     setBusyType(row.document_type);
     try {
-      await supabase.storage.from(BUCKET).remove([row.file_path]);
+      const { error: storageErr } = await supabase.storage.from(BUCKET).remove([row.file_path]);
+      if (storageErr) console.warn("storage remove error", storageErr);
       const { error } = await supabase.from("tenant_documents").delete().eq("id", row.id);
       if (error) throw error;
       toast.success("Deleted");
@@ -115,6 +120,7 @@ export function DocumentVault({
       toast.error((e as Error).message);
     } finally {
       setBusyType(null);
+      setConfirmDelete(null);
     }
   };
 
@@ -177,7 +183,7 @@ export function DocumentVault({
                           <Button size="sm" variant="outline" onClick={() => inputsRef.current[inputId]?.click()} disabled={busy}>
                             {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
                           </Button>
-                          <Button size="sm" variant="ghost" onClick={() => handleDelete(row)} disabled={busy} className="text-destructive">
+                          <Button size="sm" variant="ghost" onClick={() => setConfirmDelete(row)} disabled={busy} className="text-destructive">
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
                         </>
@@ -198,6 +204,25 @@ export function DocumentVault({
           </div>
         )}
       </DialogContent>
+      <AlertDialog open={!!confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete document?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmDelete ? `This will permanently remove your ${DOC_META.find(d => d.type === confirmDelete.document_type)?.label}.` : ""}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); if (confirmDelete) handleDelete(confirmDelete); }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }
