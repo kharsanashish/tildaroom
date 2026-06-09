@@ -18,7 +18,7 @@ import {
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Building2, LogOut, Loader2, Zap, Receipt, Smartphone,
-  CheckCircle2, XCircle, FileDown, History, Wallet, Banknote,
+  CheckCircle2, XCircle, FileDown, History, Wallet, Banknote, Bell,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -76,6 +76,8 @@ function TenantDashboard() {
   const [partialAmount, setPartialAmount] = useState("");
   const [noRateAmount, setNoRateAmount] = useState("");
   const [paying, setPaying] = useState(false);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [enablingNotifications, setEnablingNotifications] = useState(false);
 
   const { month, year } = currentMonthYear();
 
@@ -108,8 +110,23 @@ function TenantDashboard() {
 
   // Subscribe this tenant to Web Push so owner can notify them
   useEffect(() => {
-    if (user?.id) subscribePush(user.id);
+    if (!user?.id || !("Notification" in window)) return;
+    if (Notification.permission === "granted") {
+      subscribePush(user.id).then(setNotificationsEnabled);
+    } else {
+      setNotificationsEnabled(false);
+    }
   }, [user?.id]);
+
+  const enableNotifications = async () => {
+    if (!user?.id) return;
+    setEnablingNotifications(true);
+    const enabled = await subscribePush(user.id);
+    setEnablingNotifications(false);
+    setNotificationsEnabled(enabled);
+    if (enabled) toast.success("Notifications enabled");
+    else toast.error("Please allow notifications in this browser");
+  };
 
   const current = useMemo(
     () => readings.find((r) => r.month === month && r.year === year),
@@ -354,6 +371,22 @@ function TenantDashboard() {
             </div>
           </div>
           <div className="flex items-center gap-1">
+            {user?.id && !notificationsEnabled && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={enableNotifications}
+                disabled={enablingNotifications}
+                title="Enable browser notifications"
+              >
+                {enablingNotifications ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Bell className="h-4 w-4" />
+                )}
+                <span className="ml-1 hidden sm:inline">Enable alerts</span>
+              </Button>
+            )}
             {user?.id && (
               <DocumentVault tenantId={user.id} tenantName={flat.tenant_name} />
             )}
