@@ -61,7 +61,7 @@ Deno.serve(async (req) => {
         : 500;
       if (statusCode === 403 || statusCode === 404 || statusCode === 410) {
         await admin.from("push_subscriptions").delete().eq("user_id", toUserId);
-        return new Response(JSON.stringify({ error: "Tenant must reopen the app and allow notifications again" }), {
+        return new Response(JSON.stringify({ error: "Recipient must reopen the app and allow notifications again" }), {
           status: 409, headers: { ...cors, "Content-Type": "application/json" },
         });
       }
