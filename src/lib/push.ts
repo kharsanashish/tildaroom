@@ -32,12 +32,26 @@ export async function subscribePush(userId: string): Promise<boolean> {
 
   try {
     const reg = await navigator.serviceWorker.ready;
+    const applicationServerKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
     let sub = await reg.pushManager.getSubscription();
+
+    const existingKey = sub?.options.applicationServerKey;
+    if (sub && existingKey) {
+      const existing = new Uint8Array(existingKey);
+      const keyChanged =
+        existing.length !== applicationServerKey.length ||
+        existing.some((value, index) => value !== applicationServerKey[index]);
+
+      if (keyChanged) {
+        await sub.unsubscribe();
+        sub = null;
+      }
+    }
 
     if (!sub) {
       sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) as BufferSource,
+        applicationServerKey: applicationServerKey as BufferSource,
       });
     }
 
@@ -86,13 +100,19 @@ export async function sendPush(opts: {
   body: string;
   url?: string;
   tag?: string;
-}): Promise<void> {
+}): Promise<{ ok: boolean; error?: string }> {
   try {
-    const { error } = await supabase.functions.invoke("send-push", {
+    const { data, error } = await supabase.functions.invoke("send-push", {
       body: opts,
     });
-    if (error) console.warn("sendPush error:", error.message);
+    if (error) {
+      console.warn("sendPush error:", error.message);
+      return { ok: false, error: error.message };
+    }
+    if (data?.ok) return { ok: true };
+    return { ok: false, error: data?.error ?? "Notification could not be sent" };
   } catch (e) {
     console.warn("sendPush failed:", e);
+    return { ok: false, error: e instanceof Error ? e.message : "Notification request failed" };
   }
 }
