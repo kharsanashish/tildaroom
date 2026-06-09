@@ -25,6 +25,13 @@ export async function registerSW(): Promise<ServiceWorkerRegistration | null> {
 // ── Subscribe browser to Web Push and store in Supabase ───────────────────
 export async function subscribePush(userId: string): Promise<boolean> {
   if (!("PushManager" in window)) return false;
+  if ("Notification" in window) {
+    const permission =
+      Notification.permission === "default"
+        ? await Notification.requestPermission()
+        : Notification.permission;
+    if (permission !== "granted") return false;
+  }
   if (!VAPID_PUBLIC_KEY) {
     console.warn("VITE_VAPID_PUBLIC_KEY not set — push disabled");
     return false;
@@ -106,8 +113,18 @@ export async function sendPush(opts: {
       body: opts,
     });
     if (error) {
-      console.warn("sendPush error:", error.message);
-      return { ok: false, error: error.message };
+      let message = error.message;
+      const context = (error as { context?: unknown }).context;
+      if (context instanceof Response) {
+        try {
+          const payload = await context.clone().json();
+          if (payload?.error) message = payload.error;
+        } catch {
+          // Keep the original error message.
+        }
+      }
+      console.warn("sendPush error:", message);
+      return { ok: false, error: message };
     }
     if (data?.ok) return { ok: true };
     return { ok: false, error: data?.error ?? "Notification could not be sent" };
