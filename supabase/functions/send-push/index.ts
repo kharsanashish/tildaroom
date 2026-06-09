@@ -53,7 +53,18 @@ Deno.serve(async (req) => {
     };
 
     const payload = JSON.stringify({ title, body, url, tag, icon: "/favicon.ico" });
-    await webPush.sendNotification(pushSub, payload);
+    try {
+      await webPush.sendNotification(pushSub, payload);
+    } catch (error) {
+      const statusCode = error instanceof webPush.WebPushError ? error.statusCode : 500;
+      if (statusCode === 403 || statusCode === 404 || statusCode === 410) {
+        await admin.from("push_subscriptions").delete().eq("user_id", toUserId);
+        return new Response(JSON.stringify({ error: "Tenant must reopen the app and allow notifications again" }), {
+          status: 409, headers: { ...cors, "Content-Type": "application/json" },
+        });
+      }
+      throw error;
+    }
 
     return new Response(JSON.stringify({ ok: true }), {
       headers: { ...cors, "Content-Type": "application/json" },
