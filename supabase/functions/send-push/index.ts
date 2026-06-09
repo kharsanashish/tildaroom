@@ -56,7 +56,9 @@ Deno.serve(async (req) => {
     try {
       await webPush.sendNotification(pushSub, payload);
     } catch (error) {
-      const statusCode = error instanceof webPush.WebPushError ? error.statusCode : 500;
+      const statusCode = typeof error === "object" && error && "statusCode" in error
+        ? Number((error as { statusCode?: number }).statusCode)
+        : 500;
       if (statusCode === 403 || statusCode === 404 || statusCode === 410) {
         await admin.from("push_subscriptions").delete().eq("user_id", toUserId);
         return new Response(JSON.stringify({ error: "Tenant must reopen the app and allow notifications again" }), {
