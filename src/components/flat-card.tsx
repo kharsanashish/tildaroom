@@ -100,7 +100,7 @@ export function FlatCard({ flat, reading, allReadings, monthRate, month, year, o
             {flat.tenant_mobile && ` • ${flat.tenant_mobile}`}
           </div>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1" onClick={stop}>
           {waNumber && !isVacant && (
             <Button variant="ghost" size="icon" className="h-8 w-8 text-success" asChild
               title={reading ? "Send bill reminder" : "Remind to submit reading"}>
