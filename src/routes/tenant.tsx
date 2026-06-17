@@ -68,6 +68,7 @@ interface Settings {
 
 function TenantDashboard({ ownerViewFlatId }: { ownerViewFlatId?: string } = {}) {
   const { user, signOut, role } = useAuth();
+  const navigate = useNavigate();
   const ownerView = !!ownerViewFlatId && role === "owner";
   
   const [flat, setFlat] = useState<Flat | null>(null);
