@@ -51,7 +51,7 @@ function TenantRouteEntry() {
 interface Flat {
   id: string; flat_number: string; rent: number; maintenance: number;
   other_charges: number; prev_meter_reading: number; tenant_name: string;
-  tenant_whatsapp: string; is_vacant?: boolean;
+  tenant_whatsapp: string; tenant_id: string | null; is_vacant?: boolean;
 }
 interface Reading {
   id: string; flat_id: string; month: number; year: number;
