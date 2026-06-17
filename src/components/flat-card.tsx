@@ -76,7 +76,11 @@ export function FlatCard({ flat, reading, allReadings, monthRate, month, year, o
 
   return (
     <Card
-      className={`p-4 hover:shadow-md transition-shadow ${isVacant ? "opacity-60 border-dashed" : ""}`}
+      onClick={openTenantView}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => { if (e.key === "Enter") openTenantView(); }}
+      className={`p-4 hover:shadow-md transition-shadow cursor-pointer ${isVacant ? "opacity-60 border-dashed" : ""}`}
       style={{ boxShadow: isVacant ? "none" : "var(--shadow-card)" }}
     >
       <div className="flex items-start justify-between">
