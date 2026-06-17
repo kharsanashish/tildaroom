@@ -385,7 +385,7 @@ function TenantDashboard({ ownerViewFlatId }: { ownerViewFlatId?: string } = {})
             </div>
           </div>
           <div className="flex items-center gap-1">
-            {user?.id && !notificationsEnabled && (
+            {!ownerView && user?.id && !notificationsEnabled && (
               <Button
                 size="sm"
                 variant="outline"
@@ -401,12 +401,21 @@ function TenantDashboard({ ownerViewFlatId }: { ownerViewFlatId?: string } = {})
                 <span className="ml-1 hidden sm:inline">Enable alerts</span>
               </Button>
             )}
-            {user?.id && (
+            {ownerView && flat.tenant_id ? (
+              <DocumentVault tenantId={flat.tenant_id} tenantName={flat.tenant_name} role="owner" />
+            ) : !ownerView && user?.id ? (
               <DocumentVault tenantId={user.id} tenantName={flat.tenant_name} role="tenant" />
+            ) : null}
+            {ownerView ? (
+              <Button size="sm" variant="ghost" onClick={() => navigate({ to: "/owner" })} title="Back to dashboard">
+                <LogOut className="h-4 w-4 rotate-180" />
+                <span className="ml-1 hidden sm:inline">Back</span>
+              </Button>
+            ) : (
+              <Button size="sm" variant="ghost" onClick={signOut}>
+                <LogOut className="h-4 w-4" />
+              </Button>
             )}
-            <Button size="sm" variant="ghost" onClick={signOut}>
-              <LogOut className="h-4 w-4" />
-            </Button>
           </div>
         </div>
       </header>
