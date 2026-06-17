@@ -66,7 +66,9 @@ interface Settings {
   owner_upi_id: string; owner_name: string; owner_mobile: string; owner_id?: string;
 }
 
-function TenantDashboard() {
+function TenantDashboard({ ownerViewFlatId }: { ownerViewFlatId?: string } = {}) {
+  const { user, signOut, role } = useAuth();
+  const ownerView = !!ownerViewFlatId && role === "owner";
   const { user, signOut } = useAuth();
   const [flat, setFlat] = useState<Flat | null>(null);
   const [readings, setReadings] = useState<Reading[]>([]);
