@@ -577,6 +577,25 @@ function TenantDashboard({ ownerViewFlatId }: { ownerViewFlatId?: string } = {})
                     {formatINR(current ? Number(current.total_due) : totalDue)}
                   </span>
                 </div>
+                {current && Number(current.amount_paid) > 0 && (
+                  <>
+                    <Row
+                      label={`भुगतान / Payments (${(current.payment_method || "UPI").toUpperCase()})`}
+                      value={`− ${formatINR(Number(current.amount_paid))}`}
+                      className="text-success"
+                    />
+                    {Number(current.amount_paid) < Number(current.total_due) && (
+                      <div className="border-t pt-2 mt-2 flex justify-between font-bold text-base text-destructive">
+                        <span>शेष देय / To Be Paid</span>
+                        <span>
+                          {formatINR(
+                            Number(current.total_due) - Number(current.amount_paid)
+                          )}
+                        </span>
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             </Card>
 
