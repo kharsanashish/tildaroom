@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import type { PaymentStatus } from "@/lib/billing";
+import { formatINR, type PaymentStatus } from "@/lib/billing";
 
 interface Reading {
   id: string;
@@ -20,28 +20,46 @@ const STATUSES: PaymentStatus[] = ["pending", "pending_approval", "paid", "rejec
 export function EditReadingDialog({ reading, open, onOpenChange, onSaved }: {
   reading: Reading; open: boolean; onOpenChange: (v: boolean) => void; onSaved: () => void;
 }) {
-  const [s, setS] = useState({ ...reading });
+  // Only 3 editable fields; rest are auto-populated read-only from existing reading
+  const [currReading, setCurrReading] = useState<string>(
+    reading.curr_reading == null ? "" : String(reading.curr_reading),
+  );
+  const [otherCharges, setOtherCharges] = useState<string>(String(reading.other_charges ?? 0));
+  const [amountPaid, setAmountPaid] = useState<string>(String(reading.amount_paid ?? 0));
+  const [status, setStatus] = useState<PaymentStatus>(reading.payment_status);
   const [saving, setSaving] = useState(false);
 
-  const update = (k: keyof Reading, v: string) => {
-    setS((p) => ({ ...p, [k]: k === "payment_status" ? (v as PaymentStatus) : Number(v) }));
-  };
+  // Locked values (from latest existing record)
+  const prevReading = Number(reading.prev_reading) || 0;
+  const ratePerUnit = Number(reading.rate_per_unit) || 0;
+  const rent = Number(reading.rent) || 0;
+  const maintenance = Number(reading.maintenance) || 0;
+  const openingBalance = Number(reading.opening_balance) || 0;
+
+  // Derived (recomputed from editable curr_reading + other_charges)
+  const { units, electricity, totalDue } = useMemo(() => {
+    const curr = currReading === "" ? 0 : Number(currReading);
+    const u = Math.max(0, curr - prevReading);
+    const e = u * ratePerUnit;
+    const oc = Number(otherCharges) || 0;
+    return {
+      units: u,
+      electricity: e,
+      totalDue: rent + maintenance + oc + e - openingBalance,
+    };
+  }, [currReading, otherCharges, prevReading, ratePerUnit, rent, maintenance, openingBalance]);
 
   const save = async () => {
     setSaving(true);
+    const curr = currReading === "" ? null : Number(currReading);
     const { error } = await supabase.from("meter_readings").update({
-      prev_reading: Number(s.prev_reading) || 0,
-      curr_reading: s.curr_reading == null ? null : Number(s.curr_reading),
-      units: Number(s.units) || 0,
-      rate_per_unit: Number(s.rate_per_unit) || 0,
-      electricity_bill: Number(s.electricity_bill) || 0,
-      rent: Number(s.rent) || 0,
-      maintenance: Number(s.maintenance) || 0,
-      other_charges: Number(s.other_charges) || 0,
-      opening_balance: Number(s.opening_balance) || 0,
-      total_due: Number(s.total_due) || 0,
-      amount_paid: Number(s.amount_paid) || 0,
-      payment_status: s.payment_status,
+      curr_reading: curr,
+      units,
+      electricity_bill: electricity,
+      other_charges: Number(otherCharges) || 0,
+      total_due: totalDue,
+      amount_paid: Number(amountPaid) || 0,
+      payment_status: status,
     }).eq("id", reading.id);
     setSaving(false);
     if (error) return toast.error(error.message);
@@ -50,10 +68,10 @@ export function EditReadingDialog({ reading, open, onOpenChange, onSaved }: {
     onOpenChange(false);
   };
 
-  const F = ({ label, k }: { label: string; k: keyof Reading }) => (
+  const Locked = ({ label, value }: { label: string; value: string }) => (
     <div>
-      <Label className="text-xs">{label}</Label>
-      <Input value={String((s as any)[k] ?? "")} onChange={(e) => update(k, e.target.value)} type="number" />
+      <Label className="text-xs text-muted-foreground">{label}</Label>
+      <div className="h-9 px-3 flex items-center rounded-md border bg-muted text-sm">{value}</div>
     </div>
   );
 
@@ -61,23 +79,47 @@ export function EditReadingDialog({ reading, open, onOpenChange, onSaved }: {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>Edit Reading</DialogTitle></DialogHeader>
+        <p className="text-xs text-muted-foreground">
+          Only Current Reading, Other Charges, and Paid Amount can be edited. Other values are auto-populated.
+        </p>
         <div className="grid grid-cols-2 gap-3">
-          <F label="Prev Reading" k="prev_reading" />
-          <F label="Curr Reading" k="curr_reading" />
-          <F label="Units" k="units" />
-          <F label="Rate / Unit" k="rate_per_unit" />
-          <F label="Electricity Bill" k="electricity_bill" />
-          <F label="Rent" k="rent" />
-          <F label="Maintenance" k="maintenance" />
-          <F label="Other Charges" k="other_charges" />
-          <F label="Opening Balance" k="opening_balance" />
-          <F label="Total Due" k="total_due" />
-          <F label="Amount Paid" k="amount_paid" />
+          <Locked label="Prev Reading" value={String(prevReading)} />
+          <div>
+            <Label className="text-xs">Current Reading</Label>
+            <Input
+              type="number"
+              value={currReading}
+              onChange={(e) => setCurrReading(e.target.value)}
+            />
+          </div>
+          <Locked label="Units" value={units.toFixed(0)} />
+          <Locked label="Rate / Unit" value={`₹${ratePerUnit}`} />
+          <Locked label="Electricity Bill" value={formatINR(electricity)} />
+          <Locked label="Rent" value={formatINR(rent)} />
+          <Locked label="Maintenance" value={formatINR(maintenance)} />
+          <div>
+            <Label className="text-xs">Other Charges</Label>
+            <Input
+              type="number"
+              value={otherCharges}
+              onChange={(e) => setOtherCharges(e.target.value)}
+            />
+          </div>
+          <Locked label="Opening Balance" value={formatINR(openingBalance)} />
+          <Locked label="Total Due" value={formatINR(totalDue)} />
+          <div>
+            <Label className="text-xs">Paid Amount</Label>
+            <Input
+              type="number"
+              value={amountPaid}
+              onChange={(e) => setAmountPaid(e.target.value)}
+            />
+          </div>
           <div className="col-span-2">
             <Label className="text-xs">Status</Label>
             <select
-              value={s.payment_status}
-              onChange={(e) => update("payment_status", e.target.value)}
+              value={status}
+              onChange={(e) => setStatus(e.target.value as PaymentStatus)}
               className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
             >
               {STATUSES.map((x) => <option key={x} value={x}>{x}</option>)}
