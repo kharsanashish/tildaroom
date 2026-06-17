@@ -39,8 +39,14 @@ interface FlatCardProps {
 }
 
 export function FlatCard({ flat, reading, allReadings, monthRate, month, year, onChange }: FlatCardProps) {
+  const navigate = useNavigate();
   const [togglingVacant, setTogglingVacant] = useState(false);
   const isVacant = flat.is_vacant ?? false;
+
+  const openTenantView = () => {
+    navigate({ to: "/tenant", search: { flat: flat.id } });
+  };
+  const stop = (e: React.MouseEvent | React.PointerEvent) => e.stopPropagation();
 
   const status: PaymentStatus = reading?.payment_status ?? "pending";
   const fallbackDue = Number(flat.rent) + Number(flat.maintenance ?? 0) + Number(flat.other_charges);
