@@ -32,12 +32,21 @@ import { DocumentVault } from "@/components/document-vault";
 
 
 export const Route = createFileRoute("/tenant")({
-  component: () => (
-    <RouteGuard require="tenant">
-      <TenantDashboard />
-    </RouteGuard>
-  ),
+  validateSearch: (s: Record<string, unknown>) => ({
+    flat: typeof s.flat === "string" ? s.flat : undefined,
+  }),
+  component: TenantRouteEntry,
 });
+
+function TenantRouteEntry() {
+  const { flat } = Route.useSearch();
+  // Owner can view any flat via ?flat=ID; tenant always sees their own.
+  return (
+    <RouteGuard require={flat ? "any" : "tenant"}>
+      <TenantDashboard ownerViewFlatId={flat} />
+    </RouteGuard>
+  );
+}
 
 interface Flat {
   id: string; flat_number: string; rent: number; maintenance: number;
