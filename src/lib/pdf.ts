@@ -12,6 +12,7 @@ export interface ReadingPdf {
   payment_status: PaymentStatus;
   payment_method?: string | null;
   payment_timestamp?: string | null;
+  receipt_no?: string | null; // optional — auto-generated if not supplied
 }
 
 export interface FlatSummaryRow {
@@ -28,19 +29,28 @@ function rs(n: number) {
 
 function today() {
   return new Date().toLocaleDateString("en-IN", {
-    day: "2-digit", month: "numeric", year: "numeric",
+    day: "2-digit", month: "2-digit", year: "numeric",
   });
 }
 
 function paidDate(ts?: string | null) {
   if (!ts) return today();
   return new Date(ts).toLocaleDateString("en-IN", {
-    day: "2-digit", month: "numeric", year: "numeric",
+    day: "2-digit", month: "2-digit", year: "numeric",
   });
 }
 
-// ─── Invoice PDF ──────────────────────────────────────────────────────────────
-// Matches the clean invoice format: header → meta → electricity → particulars → totals
+function makeReceiptNo(flatNumber: string, month: number, year: number) {
+  const flatCode = flatNumber.replace(/\s+/g, "-");
+  const mm = String(month).padStart(2, "0");
+  return `R-${flatCode}-${year}${mm}`;
+}
+
+// ─── Rent Receipt PDF ─────────────────────────────────────────────────────────
+// Layout: header → receipt meta → Bill To → Particulars (with plain-English
+// breakdowns for each charge) → Totals → Payment Info → status stamp → footer.
+// This mirrors the classic rent-receipt format while making every charge
+// easy to understand at a glance.
 
 export function exportReadingPdf(opts: {
   reading: ReadingPdf;
@@ -52,167 +62,229 @@ export function exportReadingPdf(opts: {
 }) {
   const { reading: r, flatNumber, tenantName, tenantMobile, ownerName, ownerMobile } = opts;
 
-  const units    = Number(r.units);
-  const rate     = Number(r.rate_per_unit);
-  const elec     = Number(r.electricity_bill);
-  const rent     = Number(r.rent);
-  const maint    = Number(r.maintenance ?? 0);
-  const other    = Number(r.other_charges);
-  const ob       = Number(r.opening_balance);
-  const due      = Number(r.total_due);
-  const paid     = Number(r.amount_paid);
-  const balance  = Math.max(0, due - paid);
-  const isPaid   = r.payment_status === "paid";
+  const units     = Number(r.units);
+  const rate      = Number(r.rate_per_unit);
+  const elec      = Number(r.electricity_bill);
+  const rent      = Number(r.rent);
+  const maint     = Number(r.maintenance ?? 0);
+  const other     = Number(r.other_charges);
+  const ob        = Number(r.opening_balance);
+  const due       = Number(r.total_due);
+  const paid      = Number(r.amount_paid);
+  const balance   = Math.max(0, due - paid);
+  const advance   = Math.max(0, paid - due);
+  const isPaid    = r.payment_status === "paid";
   const isPartial = r.payment_status === "partial";
-  const method   = (r.payment_method || "UPI").toUpperCase();
+  const method    = (r.payment_method || "UPI").toUpperCase();
+  const receiptNo = r.receipt_no || makeReceiptNo(flatNumber, r.month, r.year);
 
-  // Page: A5-ish portrait (148 × 210 mm)
-  const W = 148, H = 210, M = 12;
+  // Page: A5 portrait (148 × 210 mm) — standard rent-receipt size
+  const W = 148, H = 210, M = 14;
   const doc = new jsPDF({ unit: "mm", format: [W, H] });
   let y = M;
 
-  // helpers
+  // ── low-level helpers ──────────────────────────────────────────────────
   const font = (size: number, bold = false, color = 0) => {
     doc.setFontSize(size);
     doc.setFont("helvetica", bold ? "bold" : "normal");
     doc.setTextColor(color);
   };
 
-  const hline = (thickness = 0.3) => {
-    doc.setDrawColor(0);
+  const centerText = (text: string, size: number, bold = false, color = 0) => {
+    font(size, bold, color);
+    doc.text(text, W / 2, y, { align: "center" });
+    y += size * 0.42 + 1.2;
+  };
+
+  const hline = (thickness = 0.3, color = 0, gapAfter = 3) => {
+    doc.setDrawColor(color);
     doc.setLineWidth(thickness);
     doc.line(M, y, W - M, y);
-    y += 3;
-  };
-
-  const row2 = (
-    left: string, right: string,
-    size = 8.5, bold = false,
-    rightColor = 0
-  ) => {
-    font(size, bold);
-    doc.setTextColor(0);
-    doc.text(left, M, y);
-    doc.setTextColor(rightColor);
-    doc.text(right, W - M, y, { align: "right" });
-    doc.setTextColor(0);
-    y += size * 0.42 + 1;
-  };
-
-  const label2 = (left: string, right: string, size = 8.5) => {
-    font(size, false, 80);
-    doc.text(left, M, y);
-    font(size, false, 0);
-    doc.text(right, W - M, y, { align: "right" });
-    y += size * 0.42 + 0.8;
-  };
-
-  const sectionTitle = (title: string) => {
-    y += 1;
-    font(8, true, 0);
-    doc.text(title, M, y);
-    y += 4;
-    doc.setLineWidth(0.2);
-    doc.setDrawColor(160);
-    doc.line(M, y, W - M, y);
     doc.setDrawColor(0);
-    y += 2.5;
+    y += gapAfter;
   };
 
-  // ── OWNER NAME HEADER ────────────────────────────────────────────────────
-  font(14, true);
-  doc.text(ownerName || "TildaRoom Properties", M, y);
-  y += 7;
-  if (ownerMobile) {
-    font(7.5, false, 100);
-    doc.text(`Tel: ${ownerMobile}`, M, y);
-    y += 4;
-  }
-  hline(0.5);
+  // left-aligned "Label : Value" line — used for receipt meta & bill-to block
+  const fieldLine = (label: string, value: string, size = 9) => {
+    font(size, true, 60);
+    const labelText = `${label} :`;
+    doc.text(labelText, M, y);
+    const labelWidth = doc.getTextWidth(labelText);
+    font(size, false, 0);
+    doc.text(` ${value}`, M + labelWidth, y);
+    y += size * 0.42 + 1.6;
+  };
 
-  // ── TENANT & PERIOD DETAILS ───────────────────────────────────────────────
+  // particulars row: charge name (left) + amount (right)
+  const chargeRow = (
+    label: string, amount: string,
+    rowOpts?: { bold?: boolean; size?: number; color?: number }
+  ) => {
+    const { bold = false, size = 9, color = 0 } = rowOpts || {};
+    font(size, bold, color);
+    doc.text(label, M, y);
+    doc.text(amount, W - M, y, { align: "right" });
+    y += size * 0.42 + 1.4;
+  };
+
+  // small gray note indented under a charge row — plain-English explanation
+  const subNote = (text: string) => {
+    font(7.3, false, 110);
+    doc.text(text, M + 2, y);
+    y += 3.6;
+  };
+
+  const sectionHeader = (title: string) => {
+    y += 1;
+    doc.setFillColor(245, 245, 245);
+    doc.rect(M - 2, y - 4, W - 2 * (M - 2), 6.5, "F");
+    font(8.5, true, 50);
+    doc.text(title.toUpperCase(), M, y);
+    y += 4.5;
+  };
+
+  // ── HEADER ────────────────────────────────────────────────────────────
+  centerText(ownerName || "TildaRoom Properties", 15, true);
+  if (ownerMobile) {
+    centerText(`Mob: ${ownerMobile}`, 8.5, false, 100);
+  }
   y += 1;
-  label2("Room/Flat", `Flat ${flatNumber}`, 8.5);
-  label2("Tenant", tenantName || "—");
+  hline(0.6, 0, 4);
+
+  centerText("RENT RECEIPT", 13, true);
+  y += 1;
+
+  // ── RECEIPT META ──────────────────────────────────────────────────────
+  fieldLine("Receipt No", receiptNo);
+  fieldLine("Date", today());
+  fieldLine("Period", monthLabel(r.month, r.year));
+  y += 1;
+  hline(0.2, 200, 3);
+
+  // ── BILL TO ───────────────────────────────────────────────────────────
+  sectionHeader("Bill To");
+  fieldLine("Tenant", tenantName || "—");
+  fieldLine("Flat", `Flat ${flatNumber}`);
   if (tenantMobile) {
     const mob = tenantMobile.replace(/\D/g, "");
-    label2("Mobile", mob.length === 10 ? mob.replace(/(\d{5})(\d{5})/, "$1 $2") : mob);
+    fieldLine("Mobile", mob.length === 10 ? mob.replace(/(\d{5})(\d{5})/, "$1 $2") : mob);
   }
-  label2("Period", monthLabel(r.month, r.year));
-  label2("Date", paidDate(r.payment_timestamp));
+  y += 1;
 
-  // Status with color
-  const stColor = isPaid ? [22, 163, 74] : isPartial ? [234, 88, 12] : [220, 38, 38];
-  font(8.5, true);
-  doc.text("Status", M, y);
-  doc.setTextColor(stColor[0], stColor[1], stColor[2]);
-  doc.text(statusLabel(r.payment_status).toUpperCase(), W - M, y, { align: "right" });
-  doc.setTextColor(0);
-  y += 5;
+  // ── PARTICULARS ───────────────────────────────────────────────────────
+  sectionHeader("Particulars");
 
-  // ── ELECTRICITY METRICS ───────────────────────────────────────────────────
-  if (r.curr_reading != null) {
-    sectionTitle("Electricity Metrics");
-    label2("Current Reading", `${Number(r.curr_reading).toFixed(0)}`);
-    label2("Previous Reading", `${Number(r.prev_reading).toFixed(0)}`);
-    label2("Units Consumed", `${units.toFixed(0)} units`);
-    label2("Rate per Unit", `Rs. ${rate.toFixed(2)}/unit`);
-    y += 1;
-  }
-
-  // ── PARTICULARS TABLE ─────────────────────────────────────────────────────
-  sectionTitle("Particulars");
-
-  // Table header
-  font(8, true);
+  font(8.3, true, 70);
   doc.text("Particulars", M, y);
   doc.text("Amount", W - M, y, { align: "right" });
-  y += 3.5;
+  y += 3;
   doc.setLineWidth(0.15); doc.setDrawColor(180);
   doc.line(M, y, W - M, y);
-  doc.setDrawColor(0); y += 2.5;
+  doc.setDrawColor(0); y += 3;
 
-  // Rows
-  row2("Rent Charges", rs(rent));
-  if (r.curr_reading != null) row2("Electricity Bill", rs(elec));
-  if (maint > 0) row2("Maintenance", rs(maint));
-  if (other > 0) row2("Other Charges", rs(other));
-  // Last month balance — always show when non-zero
-  // ob < 0 means tenant still owed last month → adds to this bill (shown in red as +amount)
-  // ob > 0 means tenant overpaid last month → deducts from this bill (shown in green as -amount)
+  if (r.curr_reading != null) {
+    chargeRow("Electricity Charges", rs(elec));
+    subNote(`Prev: ${Number(r.prev_reading).toFixed(0)}   Curr: ${Number(r.curr_reading).toFixed(0)}   Units: ${units.toFixed(0)}`);
+    subNote(`${units.toFixed(0)} units x Rs. ${rate.toFixed(2)}/unit = ${rs(elec)}`);
+    y += 0.5;
+  }
+
+  chargeRow("Rent", rs(rent));
+  subNote("Monthly rent for the flat");
+
+  if (maint > 0) {
+    chargeRow("Maintenance", rs(maint));
+    subNote("Common area upkeep & building maintenance");
+  }
+
+  if (other > 0) {
+    chargeRow("Other Charges", rs(other));
+    subNote("Miscellaneous charges for this period");
+  }
+
+  // ob < 0 → tenant still owed last month (adds to this bill)
+  // ob > 0 → tenant overpaid last month (deducts from this bill)
   if (ob !== 0) {
     const isOwed = ob < 0;
-    row2(
+    chargeRow(
       isOwed ? "Last Month Balance (due)" : "Last Month Balance (advance)",
       isOwed ? `+ ${rs(Math.abs(ob))}` : `- ${rs(ob)}`,
-      8.5, false,
-      isOwed ? 180 : 22,
+      { color: isOwed ? 180 : 22 }
     );
+    subNote(isOwed ? "Carried forward, unpaid from last month" : "Carried forward, extra paid last month");
   }
 
   y += 1;
-  hline(0.4);
+  hline(0.4, 0, 2);
 
-  // ── TOTALS ────────────────────────────────────────────────────────────────
-  y += 1;
-  row2("Total Amount Due", rs(due), 9, true);
-  row2("Total Amount Paid", rs(paid), 9, true, isPaid ? 22 * 0 + 30 : 30);
-  if (isPartial && balance > 0) {
-    row2("Remaining Balance", rs(balance), 9, true, 180);
+  // page-break safety net if Particulars ran long
+  if (y > H - 70) {
+    doc.addPage([W, H]);
+    y = M;
   }
+
+  // ── TOTALS (highlighted box) ─────────────────────────────────────────
+  const boxTop = y - 1.5;
+  chargeRow("Total Due", rs(due), { bold: true, size: 9.5 });
+  chargeRow("Amount Paid", rs(paid), { bold: true, size: 9.5 });
+
+  if (balance > 0) {
+    chargeRow("Balance Due", rs(balance), { bold: true, size: 9.5, color: 180 });
+    subNote("Pending amount - carries forward to next month if unpaid");
+  } else if (advance > 0) {
+    chargeRow("Advance Carried Forward", rs(advance), { bold: true, size: 9.5, color: 22 });
+    subNote("Extra amount paid - adjusted against next month's bill");
+  } else {
+    chargeRow("Balance", rs(0), { bold: true, size: 9.5, color: 22 });
+    subNote("Fully paid - no balance due");
+  }
+
+  doc.setDrawColor(210);
+  doc.setLineWidth(0.3);
+  doc.roundedRect(M - 2, boxTop, W - 2 * (M - 2), y - boxTop + 1, 1, 1, "S");
+  doc.setDrawColor(0);
+  y += 4;
+
+  // ── PAYMENT INFO ──────────────────────────────────────────────────────
+  fieldLine("Payment Via", method);
+  fieldLine("Paid On", paidDate(r.payment_timestamp));
   y += 2;
-  hline(0.3);
 
-  // ── FOOTER ────────────────────────────────────────────────────────────────
-  y += 1;
-  font(8, false, 80);
-  doc.text(`Paid Via: ${method}`, M, y); y += 5;
-  font(8.5, true, 0);
-  doc.text("Thank you for payment!", M, y); y += 5;
-  font(7, false, 160);
-  doc.text(`Generated: ${today()}`, M, y);
+  // ── STATUS STAMP ──────────────────────────────────────────────────────
+  const stampWord = statusLabel(r.payment_status).toUpperCase();
+  const stampText = `[ ${stampWord} ]`;
+  const stColor: [number, number, number] = isPaid
+    ? [22, 163, 74]
+    : isPartial
+      ? [234, 88, 12]
+      : [220, 38, 38];
 
-  doc.save(`Invoice_${flatNumber.replace(/\s/g, "-")}_${monthLabel(r.month, r.year).replace(" ", "_")}.pdf`);
+  font(11, true);
+  const stampW = doc.getTextWidth(stampText) + 10;
+  const stampX = W / 2 - stampW / 2;
+  doc.setDrawColor(stColor[0], stColor[1], stColor[2]);
+  doc.setLineWidth(0.6);
+  doc.roundedRect(stampX, y - 6, stampW, 9, 1.5, 1.5, "S");
+  doc.setTextColor(stColor[0], stColor[1], stColor[2]);
+  doc.text(stampText, W / 2, y, { align: "center" });
+  doc.setTextColor(0);
+  doc.setDrawColor(0);
+  y += 9;
+
+  // ── FOOTER ────────────────────────────────────────────────────────────
+  centerText(
+    isPaid
+      ? "Thank you for your payment!"
+      : isPartial
+        ? "Thank you — balance due next cycle."
+        : "Payment pending — please clear at the earliest.",
+    9, true
+  );
+  centerText("This is a computer-generated receipt.", 7, false, 130);
+
+  const flatPart = `Flat${flatNumber.replace(/\s+/g, "")}`;
+  const periodPart = monthLabel(r.month, r.year).replace(" ", "_");
+  doc.save(`Receipt_${flatPart}_${periodPart}.pdf`);
 }
 
 // ─── Monthly Summary PDF (A4 landscape table) ──────────────────────────────
