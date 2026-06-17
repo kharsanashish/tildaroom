@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -38,8 +39,14 @@ interface FlatCardProps {
 }
 
 export function FlatCard({ flat, reading, allReadings, monthRate, month, year, onChange }: FlatCardProps) {
+  const navigate = useNavigate();
   const [togglingVacant, setTogglingVacant] = useState(false);
   const isVacant = flat.is_vacant ?? false;
+
+  const openTenantView = () => {
+    navigate({ to: "/tenant", search: { flat: flat.id } });
+  };
+  const stop = (e: React.MouseEvent | React.PointerEvent) => e.stopPropagation();
 
   const status: PaymentStatus = reading?.payment_status ?? "pending";
   const fallbackDue = Number(flat.rent) + Number(flat.maintenance ?? 0) + Number(flat.other_charges);
@@ -69,7 +76,11 @@ export function FlatCard({ flat, reading, allReadings, monthRate, month, year, o
 
   return (
     <Card
-      className={`p-4 hover:shadow-md transition-shadow ${isVacant ? "opacity-60 border-dashed" : ""}`}
+      onClick={openTenantView}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => { if (e.key === "Enter") openTenantView(); }}
+      className={`p-4 hover:shadow-md transition-shadow cursor-pointer ${isVacant ? "opacity-60 border-dashed" : ""}`}
       style={{ boxShadow: isVacant ? "none" : "var(--shadow-card)" }}
     >
       <div className="flex items-start justify-between">
@@ -89,7 +100,7 @@ export function FlatCard({ flat, reading, allReadings, monthRate, month, year, o
             {flat.tenant_mobile && ` • ${flat.tenant_mobile}`}
           </div>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1" onClick={stop}>
           {waNumber && !isVacant && (
             <Button variant="ghost" size="icon" className="h-8 w-8 text-success" asChild
               title={reading ? "Send bill reminder" : "Remind to submit reading"}>
@@ -153,12 +164,12 @@ export function FlatCard({ flat, reading, allReadings, monthRate, month, year, o
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2" onClick={stop}>
           {/* Vacant toggle button */}
           <Button
             size="sm"
             variant={isVacant ? "default" : "outline"}
-            onClick={toggleVacant}
+            onClick={(e) => { e.stopPropagation(); toggleVacant(); }}
             disabled={togglingVacant}
             className={`text-xs ${isVacant ? "bg-muted-foreground" : ""}`}
             title={isVacant ? "Mark as occupied" : "Mark as vacant"}
@@ -175,7 +186,7 @@ export function FlatCard({ flat, reading, allReadings, monthRate, month, year, o
               current={reading}
               onSaved={onChange}
               trigger={
-                <Button size="sm" variant="outline">
+                <Button size="sm" variant="outline" onClick={(e) => e.stopPropagation()}>
                   <Zap className="h-4 w-4 mr-1" />
                   {reading ? "Update" : "Enter Reading"}
                 </Button>

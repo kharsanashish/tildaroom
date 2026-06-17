@@ -8,7 +8,7 @@ export function RouteGuard({
   require,
 }: {
   children: React.ReactNode;
-  require: "owner" | "tenant";
+  require: "owner" | "tenant" | "any";
 }) {
   const { user, role, loading } = useAuth();
   const navigate = useNavigate();
@@ -17,7 +17,7 @@ export function RouteGuard({
   useEffect(() => {
     if (loading) return;
     if (!user) navigate({ to: "/login" });
-    else if (role !== require) {
+    else if (require !== "any" && role !== require) {
       if (role === "owner") navigate({ to: "/owner" });
       else if (role === "tenant") navigate({ to: "/tenant" });
       else navigate({ to: "/login" });

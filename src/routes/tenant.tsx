@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { RouteGuard } from "@/components/route-guard";
 import { useAuth } from "@/lib/auth-context";
@@ -32,17 +32,26 @@ import { DocumentVault } from "@/components/document-vault";
 
 
 export const Route = createFileRoute("/tenant")({
-  component: () => (
-    <RouteGuard require="tenant">
-      <TenantDashboard />
-    </RouteGuard>
-  ),
+  validateSearch: (s: Record<string, unknown>) => ({
+    flat: typeof s.flat === "string" ? s.flat : undefined,
+  }),
+  component: TenantRouteEntry,
 });
+
+function TenantRouteEntry() {
+  const { flat } = Route.useSearch();
+  // Owner can view any flat via ?flat=ID; tenant always sees their own.
+  return (
+    <RouteGuard require={flat ? "any" : "tenant"}>
+      <TenantDashboard ownerViewFlatId={flat} />
+    </RouteGuard>
+  );
+}
 
 interface Flat {
   id: string; flat_number: string; rent: number; maintenance: number;
   other_charges: number; prev_meter_reading: number; tenant_name: string;
-  tenant_whatsapp: string; is_vacant?: boolean;
+  tenant_whatsapp: string; tenant_id: string | null; is_vacant?: boolean;
 }
 interface Reading {
   id: string; flat_id: string; month: number; year: number;
@@ -57,8 +66,11 @@ interface Settings {
   owner_upi_id: string; owner_name: string; owner_mobile: string; owner_id?: string;
 }
 
-function TenantDashboard() {
-  const { user, signOut } = useAuth();
+function TenantDashboard({ ownerViewFlatId }: { ownerViewFlatId?: string } = {}) {
+  const { user, signOut, role } = useAuth();
+  const navigate = useNavigate();
+  const ownerView = !!ownerViewFlatId && role === "owner";
+  
   const [flat, setFlat] = useState<Flat | null>(null);
   const [readings, setReadings] = useState<Reading[]>([]);
   const [settings, setSettings] = useState<Settings | null>(null);
@@ -84,8 +96,10 @@ function TenantDashboard() {
   // CODE QUALITY: Error handling on all Supabase reads
   const refresh = async () => {
     if (!user) return;
-    const { data: f, error: fe } = await supabase
-      .from("flats").select("*").eq("tenant_id", user.id).maybeSingle();
+    const flatQuery = ownerView
+      ? supabase.from("flats").select("*").eq("id", ownerViewFlatId!).maybeSingle()
+      : supabase.from("flats").select("*").eq("tenant_id", user.id).maybeSingle();
+    const { data: f, error: fe } = await flatQuery;
     if (fe) toast.error(`Failed to load flat: ${fe.message}`);
     setFlat(f as Flat | null);
 
@@ -106,17 +120,18 @@ function TenantDashboard() {
     setLoading(false);
   };
 
-  useEffect(() => { refresh(); }, [user]);
+  useEffect(() => { refresh(); }, [user, ownerViewFlatId]);
 
-  // Subscribe this tenant to Web Push so owner can notify them
+  // Subscribe this tenant to Web Push so owner can notify them (skip when owner is viewing)
   useEffect(() => {
+    if (ownerView) return;
     if (!user?.id || !("Notification" in window)) return;
     if (Notification.permission === "granted") {
       subscribePush(user.id).then(setNotificationsEnabled);
     } else {
       setNotificationsEnabled(false);
     }
-  }, [user?.id]);
+  }, [user?.id, ownerView]);
 
   const enableNotifications = async () => {
     if (!user?.id) return;
@@ -371,7 +386,7 @@ function TenantDashboard() {
             </div>
           </div>
           <div className="flex items-center gap-1">
-            {user?.id && !notificationsEnabled && (
+            {!ownerView && user?.id && !notificationsEnabled && (
               <Button
                 size="sm"
                 variant="outline"
@@ -387,12 +402,21 @@ function TenantDashboard() {
                 <span className="ml-1 hidden sm:inline">Enable alerts</span>
               </Button>
             )}
-            {user?.id && (
+            {ownerView && flat.tenant_id ? (
+              <DocumentVault tenantId={flat.tenant_id} tenantName={flat.tenant_name} role="owner" />
+            ) : !ownerView && user?.id ? (
               <DocumentVault tenantId={user.id} tenantName={flat.tenant_name} role="tenant" />
+            ) : null}
+            {ownerView ? (
+              <Button size="sm" variant="ghost" onClick={() => navigate({ to: "/owner" })} title="Back to dashboard">
+                <LogOut className="h-4 w-4 rotate-180" />
+                <span className="ml-1 hidden sm:inline">Back</span>
+              </Button>
+            ) : (
+              <Button size="sm" variant="ghost" onClick={signOut}>
+                <LogOut className="h-4 w-4" />
+              </Button>
             )}
-            <Button size="sm" variant="ghost" onClick={signOut}>
-              <LogOut className="h-4 w-4" />
-            </Button>
           </div>
         </div>
       </header>
