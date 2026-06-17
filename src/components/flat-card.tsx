@@ -164,12 +164,12 @@ export function FlatCard({ flat, reading, allReadings, monthRate, month, year, o
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2" onClick={stop}>
           {/* Vacant toggle button */}
           <Button
             size="sm"
             variant={isVacant ? "default" : "outline"}
-            onClick={toggleVacant}
+            onClick={(e) => { e.stopPropagation(); toggleVacant(); }}
             disabled={togglingVacant}
             className={`text-xs ${isVacant ? "bg-muted-foreground" : ""}`}
             title={isVacant ? "Mark as occupied" : "Mark as vacant"}
@@ -186,7 +186,7 @@ export function FlatCard({ flat, reading, allReadings, monthRate, month, year, o
               current={reading}
               onSaved={onChange}
               trigger={
-                <Button size="sm" variant="outline">
+                <Button size="sm" variant="outline" onClick={(e) => e.stopPropagation()}>
                   <Zap className="h-4 w-4 mr-1" />
                   {reading ? "Update" : "Enter Reading"}
                 </Button>
