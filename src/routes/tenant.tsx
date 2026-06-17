@@ -95,8 +95,10 @@ function TenantDashboard({ ownerViewFlatId }: { ownerViewFlatId?: string } = {})
   // CODE QUALITY: Error handling on all Supabase reads
   const refresh = async () => {
     if (!user) return;
-    const { data: f, error: fe } = await supabase
-      .from("flats").select("*").eq("tenant_id", user.id).maybeSingle();
+    const flatQuery = ownerView
+      ? supabase.from("flats").select("*").eq("id", ownerViewFlatId!).maybeSingle()
+      : supabase.from("flats").select("*").eq("tenant_id", user.id).maybeSingle();
+    const { data: f, error: fe } = await flatQuery;
     if (fe) toast.error(`Failed to load flat: ${fe.message}`);
     setFlat(f as Flat | null);
 
