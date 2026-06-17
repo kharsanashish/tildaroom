@@ -119,17 +119,18 @@ function TenantDashboard({ ownerViewFlatId }: { ownerViewFlatId?: string } = {})
     setLoading(false);
   };
 
-  useEffect(() => { refresh(); }, [user]);
+  useEffect(() => { refresh(); }, [user, ownerViewFlatId]);
 
-  // Subscribe this tenant to Web Push so owner can notify them
+  // Subscribe this tenant to Web Push so owner can notify them (skip when owner is viewing)
   useEffect(() => {
+    if (ownerView) return;
     if (!user?.id || !("Notification" in window)) return;
     if (Notification.permission === "granted") {
       subscribePush(user.id).then(setNotificationsEnabled);
     } else {
       setNotificationsEnabled(false);
     }
-  }, [user?.id]);
+  }, [user?.id, ownerView]);
 
   const enableNotifications = async () => {
     if (!user?.id) return;
