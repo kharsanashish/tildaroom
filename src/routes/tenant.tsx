@@ -772,6 +772,29 @@ function HistoryList({
   flat: Flat;
   settings: Settings | null;
 }) {
+  const [payments, setPayments] = useState<PaymentInstallment[]>([]);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!flat?.id) return;
+    supabase.from("payments").select("*")
+      .eq("flat_id", flat.id)
+      .order("submitted_at", { ascending: true })
+      .then(({ data, error }) => {
+        if (error) toast.error(error.message);
+        else setPayments((data as PaymentInstallment[]) ?? []);
+      });
+  }, [flat?.id, readings]);
+
+  const byReading = useMemo(() => {
+    const m = new Map<string, PaymentInstallment[]>();
+    for (const p of payments) {
+      if (!m.has(p.reading_id)) m.set(p.reading_id, []);
+      m.get(p.reading_id)!.push(p);
+    }
+    return m;
+  }, [payments]);
+
   const sorted = [...readings]
     .sort((a, b) => b.year - a.year || b.month - a.month)
     .slice(0, 12);
@@ -784,41 +807,80 @@ function HistoryList({
       </Card>
     );
   }
+
+  const toggle = (id: string) => {
+    setExpanded((s) => {
+      const n = new Set(s);
+      n.has(id) ? n.delete(id) : n.add(id);
+      return n;
+    });
+  };
+
   return (
     <div className="space-y-2">
       {sorted.map((r) => {
-        const canGetReceipt =
-          r.payment_status === "paid" || r.payment_status === "partial";
+        const inst = byReading.get(r.id) ?? [];
+        const isOpen = expanded.has(r.id);
         return (
-          <Card key={r.id} className="p-4 flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <div className="font-medium text-sm">
-                {monthLabel(r.month, r.year)}
+          <Card key={r.id} className="p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="font-medium text-sm">{monthLabel(r.month, r.year)}</div>
+                <div className="text-xs text-muted-foreground mt-0.5">
+                  {Number(r.units).toFixed(0)} units • {formatINR(Number(r.total_due))}
+                </div>
+                <Badge className={`mt-1 ${statusColor(r.payment_status)}`}>
+                  {statusLabel(r.payment_status)}
+                </Badge>
               </div>
-              <div className="text-xs text-muted-foreground mt-0.5">
-                {Number(r.units).toFixed(0)} units • {formatINR(Number(r.total_due))}
-              </div>
-              <Badge className={`mt-1 ${statusColor(r.payment_status)}`}>
-                {statusLabel(r.payment_status)}
-              </Badge>
+              {inst.length > 0 && (
+                <Button size="sm" variant="outline" onClick={() => toggle(r.id)}>
+                  <WalletIcon className="h-4 w-4 mr-1" />
+                  {inst.length} payment{inst.length > 1 ? "s" : ""}
+                </Button>
+              )}
             </div>
-            {canGetReceipt && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() =>
-                  exportReadingPdf({
-                    reading: r,
-                    flatNumber: flat.flat_number,
-                    tenantName: flat.tenant_name,
-                    tenantMobile: flat.tenant_whatsapp,
-                    ownerName: settings?.owner_name,
-                    ownerMobile: settings?.owner_mobile,
-                  })
-                }
-              >
-                <FileDown className="h-4 w-4 mr-1" /> Receipt
-              </Button>
+            {isOpen && inst.length > 0 && (
+              <div className="mt-3 border-t pt-3 space-y-2">
+                {inst.map((p, i) => {
+                  const paidBefore = inst.slice(0, i)
+                    .filter((x) => x.status === "approved")
+                    .reduce((s, x) => s + Number(x.amount), 0);
+                  return (
+                    <div key={p.id} className="flex items-center justify-between gap-2 text-xs">
+                      <div className="min-w-0">
+                        <div className="font-medium">
+                          #{i + 1} • {formatINR(Number(p.amount))}
+                          <span className="text-muted-foreground ml-2 uppercase">{p.method || "upi"}</span>
+                        </div>
+                        <div className="text-muted-foreground">
+                          {new Date(p.approved_at || p.submitted_at).toLocaleDateString("en-IN")}
+                          {p.receipt_no ? ` • ${p.receipt_no}` : ""}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <Badge className={statusBadgeClass(p.status)}>
+                          {statusBadgeLabel(p.status)}
+                        </Badge>
+                        <Button size="sm" variant="ghost" className="h-7 px-2"
+                          onClick={() => exportPaymentReceiptPdf({
+                            reading: r,
+                            payment: p,
+                            installmentIndex: i + 1,
+                            paidBefore,
+                            flatNumber: flat.flat_number,
+                            tenantName: flat.tenant_name,
+                            tenantMobile: flat.tenant_whatsapp,
+                            ownerName: settings?.owner_name,
+                            ownerMobile: settings?.owner_mobile,
+                          })}>
+                          ⬇ PDF
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </Card>
         );
@@ -826,6 +888,7 @@ function HistoryList({
     </div>
   );
 }
+
 
 function Row({
   label,
