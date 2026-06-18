@@ -26,9 +26,12 @@ import {
   statusColor, statusLabel, type PaymentStatus,
 } from "@/lib/billing";
 import { getRateFor, hasRateFor } from "@/lib/rates";
-import { exportReadingPdf } from "@/lib/pdf";
+import { exportPaymentReceiptPdf } from "@/lib/pdf";
 import { subscribePush, sendPush } from "@/lib/push";
 import { DocumentVault } from "@/components/document-vault";
+import type { PaymentInstallment } from "@/lib/payments";
+import { statusBadgeClass, statusBadgeLabel } from "@/lib/payments";
+import { FileDown, Wallet as WalletIcon } from "lucide-react";
 
 
 export const Route = createFileRoute("/tenant")({
