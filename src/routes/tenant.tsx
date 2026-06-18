@@ -227,18 +227,19 @@ function TenantDashboard({ ownerViewFlatId }: { ownerViewFlatId?: string } = {})
     setPaying(true);
     const row = await ensureRow();
     if (!row) { setPaying(false); return; }
-    const { error } = await supabase.from("meter_readings").update({
-      amount_paid: amount,
-      payment_status: "pending_approval",
-      payment_method: method,
-      payment_timestamp: new Date().toISOString(),
-    }).eq("id", row.id);
+    // Insert installment — preserves any previously approved payments.
+    const { error } = await supabase.from("payments").insert({
+      reading_id: row.id,
+      flat_id: flat.id,
+      tenant_id: user?.id ?? null,
+      amount,
+      method,
+    });
     setPaying(false);
     if (error) return toast.error(error.message);
     toast.success(`${method === "cash" ? "Cash" : "Payment"} marked pending approval.`);
     refresh();
 
-    // Notify owner via push notification
     if (settings?.owner_id) {
       await sendPush({
         toUserId: settings.owner_id,
@@ -260,6 +261,7 @@ function TenantDashboard({ ownerViewFlatId }: { ownerViewFlatId?: string } = {})
       }
     }
   };
+
 
   // BUG FIX: Use window.open (new tab) instead of window.location.href.
   // Immediately show confirm dialog — no unreliable setTimeout.
