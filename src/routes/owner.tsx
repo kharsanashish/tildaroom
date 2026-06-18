@@ -308,7 +308,7 @@ function OwnerDashboard() {
           </TabsContent>
 
           <TabsContent value="approvals" className="mt-4">
-            <ApprovalsList flats={flats} readings={readings} onChange={refresh} />
+            <ApprovalsList flats={flats} readings={readings} settings={settings} onChange={refresh} />
           </TabsContent>
 
           <TabsContent value="history" className="mt-4">
