@@ -31,7 +31,7 @@ import { subscribePush, sendPush } from "@/lib/push";
 import { DocumentVault } from "@/components/document-vault";
 import type { PaymentInstallment } from "@/lib/payments";
 import { statusBadgeClass, statusBadgeLabel } from "@/lib/payments";
-import { FileDown, Wallet as WalletIcon } from "lucide-react";
+import { Wallet as WalletIcon } from "lucide-react";
 
 
 export const Route = createFileRoute("/tenant")({
