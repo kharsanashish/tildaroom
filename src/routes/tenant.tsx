@@ -834,7 +834,7 @@ function HistoryList({
               </div>
               {inst.length > 0 && (
                 <Button size="sm" variant="outline" onClick={() => toggle(r.id)}>
-                  <WalletIcon className="h-4 w-4 mr-1" />
+                  <Wallet className="h-4 w-4 mr-1" />
                   {inst.length} payment{inst.length > 1 ? "s" : ""}
                 </Button>
               )}
