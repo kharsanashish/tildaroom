@@ -15,28 +15,23 @@ interface Reading {
   total_due: number; amount_paid: number; payment_status: PaymentStatus;
 }
 
-const STATUSES: PaymentStatus[] = ["pending", "pending_approval", "paid", "rejected", "partial"];
-
 export function EditReadingDialog({ reading, open, onOpenChange, onSaved }: {
   reading: Reading; open: boolean; onOpenChange: (v: boolean) => void; onSaved: () => void;
 }) {
-  // Only 3 editable fields; rest are auto-populated read-only from existing reading
+  // Editable: Current Reading and Other Charges only.
+  // Paid Amount + Status are now derived from the `payments` table — never edited here.
   const [currReading, setCurrReading] = useState<string>(
     reading.curr_reading == null ? "" : String(reading.curr_reading),
   );
   const [otherCharges, setOtherCharges] = useState<string>(String(reading.other_charges ?? 0));
-  const [amountPaid, setAmountPaid] = useState<string>(String(reading.amount_paid ?? 0));
-  const [status, setStatus] = useState<PaymentStatus>(reading.payment_status);
   const [saving, setSaving] = useState(false);
 
-  // Locked values (from latest existing record)
   const prevReading = Number(reading.prev_reading) || 0;
   const ratePerUnit = Number(reading.rate_per_unit) || 0;
   const rent = Number(reading.rent) || 0;
   const maintenance = Number(reading.maintenance) || 0;
   const openingBalance = Number(reading.opening_balance) || 0;
 
-  // Derived (recomputed from editable curr_reading + other_charges)
   const { units, electricity, totalDue } = useMemo(() => {
     const curr = currReading === "" ? 0 : Number(currReading);
     const u = Math.max(0, curr - prevReading);
@@ -58,8 +53,6 @@ export function EditReadingDialog({ reading, open, onOpenChange, onSaved }: {
       electricity_bill: electricity,
       other_charges: Number(otherCharges) || 0,
       total_due: totalDue,
-      amount_paid: Number(amountPaid) || 0,
-      payment_status: status,
     }).eq("id", reading.id);
     setSaving(false);
     if (error) return toast.error(error.message);
@@ -80,17 +73,13 @@ export function EditReadingDialog({ reading, open, onOpenChange, onSaved }: {
       <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>Edit Reading</DialogTitle></DialogHeader>
         <p className="text-xs text-muted-foreground">
-          Only Current Reading, Other Charges, and Paid Amount can be edited. Other values are auto-populated.
+          Paid amount and status come from the Payments table — approve or reject individual installments from the Approvals tab.
         </p>
         <div className="grid grid-cols-2 gap-3">
           <Locked label="Prev Reading" value={String(prevReading)} />
           <div>
             <Label className="text-xs">Current Reading</Label>
-            <Input
-              type="number"
-              value={currReading}
-              onChange={(e) => setCurrReading(e.target.value)}
-            />
+            <Input type="number" value={currReading} onChange={(e) => setCurrReading(e.target.value)} />
           </div>
           <Locked label="Units" value={units.toFixed(0)} />
           <Locked label="Rate / Unit" value={`₹${ratePerUnit}`} />
@@ -99,32 +88,12 @@ export function EditReadingDialog({ reading, open, onOpenChange, onSaved }: {
           <Locked label="Maintenance" value={formatINR(maintenance)} />
           <div>
             <Label className="text-xs">Other Charges</Label>
-            <Input
-              type="number"
-              value={otherCharges}
-              onChange={(e) => setOtherCharges(e.target.value)}
-            />
+            <Input type="number" value={otherCharges} onChange={(e) => setOtherCharges(e.target.value)} />
           </div>
           <Locked label="Opening Balance" value={formatINR(openingBalance)} />
           <Locked label="Total Due" value={formatINR(totalDue)} />
-          <div>
-            <Label className="text-xs">Paid Amount</Label>
-            <Input
-              type="number"
-              value={amountPaid}
-              onChange={(e) => setAmountPaid(e.target.value)}
-            />
-          </div>
-          <div className="col-span-2">
-            <Label className="text-xs">Status</Label>
-            <select
-              value={status}
-              onChange={(e) => setStatus(e.target.value as PaymentStatus)}
-              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
-            >
-              {STATUSES.map((x) => <option key={x} value={x}>{x}</option>)}
-            </select>
-          </div>
+          <Locked label="Paid (approved)" value={formatINR(Number(reading.amount_paid))} />
+          <Locked label="Status" value={reading.payment_status} />
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
