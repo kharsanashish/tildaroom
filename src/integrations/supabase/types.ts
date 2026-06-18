@@ -172,6 +172,69 @@ export type Database = {
           },
         ]
       }
+      payments: {
+        Row: {
+          amount: number
+          approved_at: string | null
+          created_at: string
+          flat_id: string
+          id: string
+          method: string
+          note: string | null
+          reading_id: string
+          receipt_no: string | null
+          status: string
+          submitted_at: string
+          tenant_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          approved_at?: string | null
+          created_at?: string
+          flat_id: string
+          id?: string
+          method?: string
+          note?: string | null
+          reading_id: string
+          receipt_no?: string | null
+          status?: string
+          submitted_at?: string
+          tenant_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          approved_at?: string | null
+          created_at?: string
+          flat_id?: string
+          id?: string
+          method?: string
+          note?: string | null
+          reading_id?: string
+          receipt_no?: string | null
+          status?: string
+          submitted_at?: string
+          tenant_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payments_flat_id_fkey"
+            columns: ["flat_id"]
+            isOneToOne: false
+            referencedRelation: "flats"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_reading_id_fkey"
+            columns: ["reading_id"]
+            isOneToOne: false
+            referencedRelation: "meter_readings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
@@ -318,6 +381,10 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      recompute_reading_payment: {
+        Args: { p_reading_id: string }
+        Returns: undefined
       }
     }
     Enums: {
