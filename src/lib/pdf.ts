@@ -281,6 +281,103 @@ export function exportReadingPdf(opts: {
   doc.save(`Receipt_${flatPart}_${periodPart}.pdf`);
 }
 
+// ─── Per-Installment Receipt PDF ───────────────────────────────────────────
+// One receipt per payment installment. Independent file (different receipt
+// number + amount) so previous receipts are never overwritten.
+
+export interface PaymentForReceipt {
+  id: string;
+  amount: number;
+  method: string | null;
+  status: "pending_approval" | "approved" | "rejected";
+  receipt_no: string | null;
+  submitted_at: string;
+  approved_at: string | null;
+}
+
+export function exportPaymentReceiptPdf(opts: {
+  reading: ReadingPdf;
+  payment: PaymentForReceipt;
+  installmentIndex: number;   // 1-based order this payment in the month
+  paidBefore: number;         // sum of previously-approved installments
+  flatNumber: string;
+  tenantName: string;
+  tenantMobile?: string;
+  ownerName?: string;
+  ownerMobile?: string;
+}) {
+  const { reading: r, payment: p, installmentIndex, paidBefore,
+          flatNumber, tenantName, tenantMobile, ownerName, ownerMobile } = opts;
+
+  const due       = Number(r.total_due);
+  const thisAmt   = Number(p.amount);
+  const cumPaid   = paidBefore + (p.status === "approved" ? thisAmt : 0);
+  const balance   = Math.max(0, due - cumPaid);
+  const method    = (p.method || "UPI").toUpperCase();
+  const stamp     = p.status === "approved" ? "APPROVED"
+                  : p.status === "rejected" ? "REJECTED" : "PENDING APPROVAL";
+  const receiptNo = p.receipt_no || `${makeReceiptNo(flatNumber, r.month, r.year)}-${String(installmentIndex).padStart(2,"0")}`;
+  const paidOn    = paidDate(p.approved_at || p.submitted_at);
+
+  const M = 5;
+  const doc = buildThermalPdf(M, (h) => {
+    const { printLine, blank, dashes, center, row2, note } = h;
+
+    center(ownerName || "TildaRoom Properties", true);
+    if (ownerMobile) center(`Mob: ${ownerMobile}`);
+    blank();
+    center("PAYMENT RECEIPT", true);
+    center(`Installment #${installmentIndex}`);
+    blank();
+
+    printLine(`Date: ${today()}`);
+    blank();
+    printLine(clip(tenantName || "-", COLS), true);
+    printLine(`Flat: ${flatNumber}`);
+    if (tenantMobile) {
+      const mob = tenantMobile.replace(/\D/g, "");
+      printLine(`Mobile: ${mob.length === 10 ? mob.replace(/(\d{5})(\d{5})/, "$1 $2") : mob}`);
+    }
+    blank();
+    printLine(`Receipt No: ${receiptNo}`);
+    printLine(`Payment Mode: ${method}`);
+    printLine(`Period: ${monthLabel(r.month, r.year)}`);
+    dashes();
+
+    row2("Total Due", `Rs ${due.toFixed(2)}`, true);
+    if (paidBefore > 0) {
+      row2("Previously Paid", `Rs ${paidBefore.toFixed(2)}`);
+      note("Earlier approved installments");
+    }
+    row2("This Payment", `Rs ${thisAmt.toFixed(2)}`, true);
+    dashes();
+    if (p.status === "approved") {
+      row2("Total Paid", `Rs ${cumPaid.toFixed(2)}`, true);
+      if (balance > 0) {
+        row2("Balance Due", `Rs ${balance.toFixed(2)}`, true);
+        note("Carries forward to next installment");
+      } else {
+        row2("Balance", "Rs 0.00", true);
+        note("Fully paid - no balance due");
+      }
+    } else {
+      note("Balance will update once owner approves.");
+    }
+    printLine(`Paid On: ${paidOn}`);
+
+    blank();
+    dashes();
+    center(`*** ${stamp} ***`, true);
+    blank();
+    center("Computer-generated receipt");
+    center("E & O.E");
+  });
+
+  const flatPart = `Flat${flatNumber.replace(/\s+/g, "")}`;
+  const periodPart = monthLabel(r.month, r.year).replace(" ", "_");
+  doc.save(`Receipt_${flatPart}_${periodPart}_${String(installmentIndex).padStart(2,"0")}.pdf`);
+}
+
 // ─── Monthly Summary PDF — Thermal Roll Style ──────────────────────────────
 // Same till-roll grid as the receipt above: one block per flat (Due / Paid /
 // Balance / Status), then a TOTALS block at the end.
