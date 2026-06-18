@@ -18,7 +18,7 @@ import {
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Building2, LogOut, Loader2, Zap, Receipt, Smartphone,
-  CheckCircle2, XCircle, FileDown, History, Wallet, Banknote, Bell,
+  CheckCircle2, XCircle, History, Wallet, Banknote, Bell,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -31,7 +31,6 @@ import { subscribePush, sendPush } from "@/lib/push";
 import { DocumentVault } from "@/components/document-vault";
 import type { PaymentInstallment } from "@/lib/payments";
 import { statusBadgeClass, statusBadgeLabel } from "@/lib/payments";
-import { Wallet as WalletIcon } from "lucide-react";
 
 
 export const Route = createFileRoute("/tenant")({
