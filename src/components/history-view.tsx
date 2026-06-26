@@ -244,6 +244,27 @@ export function HistoryView({
                               onClick={() => downloadInstallment(r, flat, p, i + 1, paidBefore)}>
                               <FileDown className="h-3 w-3" />
                             </Button>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button size="sm" variant="ghost" className="h-7 px-2 text-destructive hover:text-destructive">
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Delete payment #{i + 1}?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    {p.status === "approved"
+                                      ? `This approved payment of ${formatINR(Number(p.amount))} will be removed and the amount will move back to pending balance.`
+                                      : `This ${p.status === "rejected" ? "rejected" : "pending"} payment will be removed. No balance changes.`}
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction onClick={() => deleteInstallment(p)}>Delete</AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
                           </div>
                         </div>
                       );
