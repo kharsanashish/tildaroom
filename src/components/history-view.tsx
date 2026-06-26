@@ -2,7 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { History, IndianRupee, Pencil, FileDown, FileText, ChevronDown, ChevronUp } from "lucide-react";
+import { History, IndianRupee, Pencil, FileDown, FileText, ChevronDown, ChevronUp, Trash2 } from "lucide-react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { formatINR, monthLabel, statusColor, statusLabel, type PaymentStatus } from "@/lib/billing";
@@ -122,6 +126,16 @@ export function HistoryView({
     });
   };
 
+  const deleteInstallment = async (p: PaymentInstallment) => {
+    const { error } = await supabase.from("payments").delete().eq("id", p.id);
+    if (error) return toast.error(error.message);
+    toast.success(p.status === "approved"
+      ? "Payment deleted — balance moved back to pending"
+      : "Payment deleted");
+    await load();
+    onChange();
+  };
+
   const toggle = (id: string) => {
     setExpanded((s) => {
       const n = new Set(s);
@@ -230,6 +244,27 @@ export function HistoryView({
                               onClick={() => downloadInstallment(r, flat, p, i + 1, paidBefore)}>
                               <FileDown className="h-3 w-3" />
                             </Button>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button size="sm" variant="ghost" className="h-7 px-2 text-destructive hover:text-destructive">
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Delete payment #{i + 1}?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    {p.status === "approved"
+                                      ? `This approved payment of ${formatINR(Number(p.amount))} will be removed and the amount will move back to pending balance.`
+                                      : `This ${p.status === "rejected" ? "rejected" : "pending"} payment will be removed. No balance changes.`}
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction onClick={() => deleteInstallment(p)}>Delete</AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
                           </div>
                         </div>
                       );
