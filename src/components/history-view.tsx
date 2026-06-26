@@ -126,6 +126,16 @@ export function HistoryView({
     });
   };
 
+  const deleteInstallment = async (p: PaymentInstallment) => {
+    const { error } = await supabase.from("payments").delete().eq("id", p.id);
+    if (error) return toast.error(error.message);
+    toast.success(p.status === "approved"
+      ? "Payment deleted — balance moved back to pending"
+      : "Payment deleted");
+    await load();
+    onChange();
+  };
+
   const toggle = (id: string) => {
     setExpanded((s) => {
       const n = new Set(s);
