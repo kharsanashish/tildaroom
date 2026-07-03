@@ -2,7 +2,8 @@
 // Deno Edge Function — sends Web Push notifications to a tenant's browser subscriptions.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import * as webpush from "https://deno.land/x/webpush@v0.3.0/mod.ts";
+// @ts-ignore — Deno npm: specifier
+import webpush from "npm:web-push@3";
 
 const SUPABASE_URL     = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
