@@ -871,6 +871,7 @@ function HistoryList({
                             tenantMobile: flat.tenant_whatsapp,
                             ownerName: settings?.owner_name,
                             ownerMobile: undefined,
+                          })}>
                           ⬇ PDF
                         </Button>
                       </div>
