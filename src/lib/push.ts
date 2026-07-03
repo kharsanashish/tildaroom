@@ -115,7 +115,13 @@ export async function sendPush(opts: {
 }): Promise<{ ok: boolean; error?: string }> {
   try {
     const { data, error } = await supabase.functions.invoke("send-push", {
-      body: opts,
+      body: {
+        tenant_id: opts.toUserId,
+        title: opts.title,
+        message: opts.body,
+        url: opts.url,
+        tag: opts.tag,
+      },
     });
     if (error) {
       let message = error.message;
@@ -131,7 +137,7 @@ export async function sendPush(opts: {
       console.warn("sendPush error:", message);
       return { ok: false, error: message };
     }
-    if (data?.ok) return { ok: true };
+    if (data?.success && (data?.sentCount ?? 0) > 0) return { ok: true };
     return { ok: false, error: data?.error ?? "Notification could not be sent" };
   } catch (e) {
     console.warn("sendPush failed:", e);
