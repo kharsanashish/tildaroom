@@ -402,7 +402,7 @@ function TenantDashboard({ ownerViewFlatId }: { ownerViewFlatId?: string } = {})
                 ) : (
                   <Bell className="h-4 w-4" />
                 )}
-                <span className="ml-1 hidden sm:inline">Enable alerts</span>
+                <span className="ml-1">Enable alerts</span>
               </Button>
             )}
             {ownerView && flat.tenant_id ? (
