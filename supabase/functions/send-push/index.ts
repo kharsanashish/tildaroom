@@ -1,119 +1,92 @@
 // supabase/functions/send-push/index.ts
-// Deno Edge Function — sends a Web Push notification to a user's browser.
-// Requires an authenticated caller. Callers may only send:
-//   - owner → any tenant
-//   - tenant → the owner (from settings.owner_id)
+// Deno Edge Function — sends Web Push notifications to a tenant's browser subscriptions.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-// @ts-ignore — Deno npm: specifier
-import webPush from "npm:web-push@3";
+import * as webpush from "https://deno.land/x/webpush@v0.3.0/mod.ts";
 
 const SUPABASE_URL     = Deno.env.get("SUPABASE_URL")!;
-const SUPABASE_ANON    = Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY")!;
 const SUPABASE_SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const VAPID_PUBLIC     = Deno.env.get("VAPID_PUBLIC_KEY")!;
+const VAPID_PUBLIC     = Deno.env.get("VITE_VAPID_PUBLIC_KEY")!;
 const VAPID_PRIVATE    = Deno.env.get("VAPID_PRIVATE_KEY")!;
 const rawVapidSubject  = Deno.env.get("VAPID_SUBJECT") ?? "admin@tildaroom.app";
 const VAPID_SUBJECT    = rawVapidSubject.includes(":") ? rawVapidSubject : `mailto:${rawVapidSubject}`;
 
-webPush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC, VAPID_PRIVATE);
+// @ts-ignore — library types
+webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC, VAPID_PRIVATE);
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
-    status, headers: { ...cors, "Content-Type": "application/json" },
+    status,
+    headers: { ...cors, "Content-Type": "application/json" },
   });
 }
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
+  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
   try {
-    // ── AuthN: require a Supabase user JWT ──────────────────────────────
-    const authHeader = req.headers.get("Authorization") ?? "";
-    const token = authHeader.replace(/^Bearer\s+/i, "");
-    if (!token) return json({ error: "Unauthorized" }, 401);
+    const { tenant_id, message, title } = await req.json();
 
-    const userClient = createClient(SUPABASE_URL, SUPABASE_ANON, {
-      global: { headers: { Authorization: `Bearer ${token}` } },
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
-    const { data: userData, error: userErr } = await userClient.auth.getUser(token);
-    if (userErr || !userData?.user) return json({ error: "Unauthorized" }, 401);
-    const callerId = userData.user.id;
-
-    const { toUserId, title, body, url = "/", tag = "tildaroom" } = await req.json();
-    if (!toUserId || !title || !body) {
-      return json({ error: "Missing toUserId / title / body" }, 400);
+    if (!tenant_id || !message) {
+      return json({ error: "Missing tenant_id or message" }, 400);
     }
 
     const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE);
 
-    // ── AuthZ: caller must be owner, OR a tenant messaging the owner ────
-    const { data: isOwner } = await admin.rpc("has_role", {
-      _user_id: callerId, _role: "owner",
-    });
-
-    let allowed = Boolean(isOwner);
-    if (!allowed) {
-      // Tenant path: only permit sending to the configured owner_id
-      const { data: settings } = await admin
-        .from("settings").select("owner_id").eq("id", 1).maybeSingle();
-      if (settings?.owner_id && settings.owner_id === toUserId) allowed = true;
-    }
-    if (!allowed) return json({ error: "Forbidden" }, 403);
-
-    // Look up all browser subscriptions for the target user
     const { data: subscriptions, error } = await admin
       .from("push_subscriptions")
       .select("endpoint, p256dh, auth")
-      .eq("user_id", toUserId);
+      .eq("user_id", tenant_id);
 
-    if (error || !subscriptions?.length) {
-      return json({ error: "No subscription found" }, 404);
+    if (error) {
+      console.error("Failed to load subscriptions:", error);
+      return json({ error: error.message }, 500);
     }
 
-    const payload = JSON.stringify({ title, body, url, tag, icon: "/favicon.ico" });
-    let sent = 0;
-    let stale = 0;
-    let lastError = "Notification could not be sent";
+    if (!subscriptions?.length) {
+      return json({ error: "No subscriptions found for tenant" }, 404);
+    }
+
+    const payload = JSON.stringify({
+      title: title || "TildaRoom",
+      body: message,
+      url: "/",
+    });
+
+    let sentCount = 0;
+    let failedCount = 0;
 
     for (const sub of subscriptions) {
       const pushSub = {
         endpoint: sub.endpoint,
         keys: { p256dh: sub.p256dh, auth: sub.auth },
       };
-
       try {
-        await webPush.sendNotification(pushSub, payload);
-        sent++;
-      } catch (error) {
-        const statusCode = typeof error === "object" && error && "statusCode" in error
-          ? Number((error as { statusCode?: number }).statusCode)
-          : 500;
-        if (statusCode === 403 || statusCode === 404 || statusCode === 410) {
-          stale++;
+        // @ts-ignore — library types
+        await webpush.sendNotification(pushSub, payload);
+        sentCount++;
+      } catch (err) {
+        failedCount++;
+        const statusCode = typeof err === "object" && err && "statusCode" in err
+          ? Number((err as { statusCode?: number }).statusCode)
+          : 0;
+        if (statusCode === 404 || statusCode === 410) {
           await admin.from("push_subscriptions").delete().eq("endpoint", sub.endpoint);
-          continue;
         }
-        lastError = String(error);
+        console.warn("Push send failed:", statusCode, err);
       }
     }
 
-    if (sent === 0) {
-      const message = stale > 0
-        ? "Recipient must reopen the app and allow notifications again"
-        : lastError;
-      return json({ error: message }, stale > 0 ? 409 : 500);
-    }
-
-    return json({ ok: true, sent });
+    return json({ success: true, sentCount, failedCount });
   } catch (e) {
     console.error("send-push error:", e);
-    return json({ error: String(e) }, 500);
+    return json({ error: e instanceof Error ? e.message : String(e) }, 500);
   }
 });
