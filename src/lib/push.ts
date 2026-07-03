@@ -115,7 +115,13 @@ export async function sendPush(opts: {
 }): Promise<{ ok: boolean; error?: string }> {
   try {
     const { data, error } = await supabase.functions.invoke("send-push", {
-      body: opts,
+      body: {
+        tenant_id: opts.toUserId,
+        title: opts.title,
+        message: opts.body,
+        url: opts.url,
+        tag: opts.tag,
+      },
     });
     if (error) {
       let message = error.message;
