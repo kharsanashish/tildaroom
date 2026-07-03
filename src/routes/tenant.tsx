@@ -870,8 +870,7 @@ function HistoryList({
                             tenantName: flat.tenant_name,
                             tenantMobile: flat.tenant_whatsapp,
                             ownerName: settings?.owner_name,
-                            ownerMobile: settings?.owner_mobile,
-                          })}>
+                            ownerMobile: undefined,
                           ⬇ PDF
                         </Button>
                       </div>
