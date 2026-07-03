@@ -105,8 +105,12 @@ function TenantDashboard({ ownerViewFlatId }: { ownerViewFlatId?: string } = {})
     if (fe) toast.error(`Failed to load flat: ${fe.message}`);
     setFlat(f as Flat | null);
 
-    const { data: s, error: se } = await supabase
-      .from("settings").select("*").eq("id", 1).single();
+    // Tenants read owner contact info from a purpose-limited view
+    // (public_owner_info) that excludes the owner's private mobile number.
+    // Owners keep full-row access via the base settings table policy.
+    const { data: s, error: se } = await (ownerView
+      ? supabase.from("settings").select("*").eq("id", 1).maybeSingle()
+      : supabase.from("public_owner_info" as never).select("*").eq("id", 1).maybeSingle());
     if (se) toast.error(`Failed to load settings: ${se.message}`);
     setSettings(s as Settings);
 
@@ -253,14 +257,9 @@ function TenantDashboard({ ownerViewFlatId }: { ownerViewFlatId?: string } = {})
     }
 
     if (openWhatsApp) {
-      const mobile = (settings?.owner_mobile || "").replace(/\D/g, "");
-      if (mobile) {
-        const label = method === "cash" ? "Cash payment" : "Payment done";
-        const msg = `${label} for Flat ${flat.flat_number} - ${monthLabel(month, year)} ₹${amount.toFixed(0)}.${method === "upi" ? " Screenshot attached." : ""}`;
-        window.open(`https://wa.me/91${mobile}?text=${encodeURIComponent(msg)}`, "_blank");
-      } else {
-        toast.warning("Owner mobile not set in settings");
-      }
+      // Owner's mobile is no longer exposed to tenants; the primary
+      // notification channel is Web Push (sent above).
+      toast.info("Owner has been notified via app notification.");
     }
   };
 
@@ -871,7 +870,7 @@ function HistoryList({
                             tenantName: flat.tenant_name,
                             tenantMobile: flat.tenant_whatsapp,
                             ownerName: settings?.owner_name,
-                            ownerMobile: settings?.owner_mobile,
+                            ownerMobile: undefined,
                           })}>
                           ⬇ PDF
                         </Button>

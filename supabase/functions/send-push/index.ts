@@ -1,13 +1,15 @@
 // supabase/functions/send-push/index.ts
 // Deno Edge Function — sends a Web Push notification to a user's browser.
-// Deploy: supabase functions deploy send-push
-// Secrets: VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, optional VAPID_SUBJECT email/URL
+// Requires an authenticated caller. Callers may only send:
+//   - owner → any tenant
+//   - tenant → the owner (from settings.owner_id)
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 // @ts-ignore — Deno npm: specifier
 import webPush from "npm:web-push@3";
 
 const SUPABASE_URL     = Deno.env.get("SUPABASE_URL")!;
+const SUPABASE_ANON    = Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY")!;
 const SUPABASE_SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const VAPID_PUBLIC     = Deno.env.get("VAPID_PUBLIC_KEY")!;
 const VAPID_PRIVATE    = Deno.env.get("VAPID_PRIVATE_KEY")!;
@@ -21,29 +23,58 @@ const cors = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+function json(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status, headers: { ...cors, "Content-Type": "application/json" },
+  });
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
 
   try {
-    const { toUserId, title, body, url = "/", tag = "tildaroom" } = await req.json();
+    // ── AuthN: require a Supabase user JWT ──────────────────────────────
+    const authHeader = req.headers.get("Authorization") ?? "";
+    const token = authHeader.replace(/^Bearer\s+/i, "");
+    if (!token) return json({ error: "Unauthorized" }, 401);
 
+    const userClient = createClient(SUPABASE_URL, SUPABASE_ANON, {
+      global: { headers: { Authorization: `Bearer ${token}` } },
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const { data: userData, error: userErr } = await userClient.auth.getUser(token);
+    if (userErr || !userData?.user) return json({ error: "Unauthorized" }, 401);
+    const callerId = userData.user.id;
+
+    const { toUserId, title, body, url = "/", tag = "tildaroom" } = await req.json();
     if (!toUserId || !title || !body) {
-      return new Response(JSON.stringify({ error: "Missing toUserId / title / body" }), {
-        status: 400, headers: { ...cors, "Content-Type": "application/json" },
-      });
+      return json({ error: "Missing toUserId / title / body" }, 400);
     }
 
-    // Look up all browser subscriptions for the target user
     const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE);
+
+    // ── AuthZ: caller must be owner, OR a tenant messaging the owner ────
+    const { data: isOwner } = await admin.rpc("has_role", {
+      _user_id: callerId, _role: "owner",
+    });
+
+    let allowed = Boolean(isOwner);
+    if (!allowed) {
+      // Tenant path: only permit sending to the configured owner_id
+      const { data: settings } = await admin
+        .from("settings").select("owner_id").eq("id", 1).maybeSingle();
+      if (settings?.owner_id && settings.owner_id === toUserId) allowed = true;
+    }
+    if (!allowed) return json({ error: "Forbidden" }, 403);
+
+    // Look up all browser subscriptions for the target user
     const { data: subscriptions, error } = await admin
       .from("push_subscriptions")
       .select("endpoint, p256dh, auth")
       .eq("user_id", toUserId);
 
     if (error || !subscriptions?.length) {
-      return new Response(JSON.stringify({ error: "No subscription found" }), {
-        status: 404, headers: { ...cors, "Content-Type": "application/json" },
-      });
+      return json({ error: "No subscription found" }, 404);
     }
 
     const payload = JSON.stringify({ title, body, url, tag, icon: "/favicon.ico" });
@@ -77,18 +108,12 @@ Deno.serve(async (req) => {
       const message = stale > 0
         ? "Recipient must reopen the app and allow notifications again"
         : lastError;
-      return new Response(JSON.stringify({ error: message }), {
-        status: stale > 0 ? 409 : 500, headers: { ...cors, "Content-Type": "application/json" },
-      });
+      return json({ error: message }, stale > 0 ? 409 : 500);
     }
 
-    return new Response(JSON.stringify({ ok: true, sent }), {
-      headers: { ...cors, "Content-Type": "application/json" },
-    });
+    return json({ ok: true, sent });
   } catch (e) {
     console.error("send-push error:", e);
-    return new Response(JSON.stringify({ error: String(e) }), {
-      status: 500, headers: { ...cors, "Content-Type": "application/json" },
-    });
+    return json({ error: String(e) }, 500);
   }
 });
