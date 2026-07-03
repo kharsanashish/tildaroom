@@ -137,7 +137,7 @@ export async function sendPush(opts: {
       console.warn("sendPush error:", message);
       return { ok: false, error: message };
     }
-    if (data?.ok) return { ok: true };
+    if (data?.success && (data?.sentCount ?? 0) > 0) return { ok: true };
     return { ok: false, error: data?.error ?? "Notification could not be sent" };
   } catch (e) {
     console.warn("sendPush failed:", e);
