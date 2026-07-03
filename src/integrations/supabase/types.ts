@@ -372,7 +372,27 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      public_owner_info: {
+        Row: {
+          id: number | null
+          owner_id: string | null
+          owner_name: string | null
+          owner_upi_id: string | null
+        }
+        Insert: {
+          id?: number | null
+          owner_id?: string | null
+          owner_name?: string | null
+          owner_upi_id?: string | null
+        }
+        Update: {
+          id?: number | null
+          owner_id?: string | null
+          owner_name?: string | null
+          owner_upi_id?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       has_role: {
