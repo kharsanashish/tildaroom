@@ -33,9 +33,16 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
   try {
-    const { tenant_id, message, title } = await req.json();
+    const requestBody = await req.json();
+    if (requestBody?.action === "vapid-public-key") {
+      return json({ publicKey: VAPID_PUBLIC });
+    }
 
-    if (!tenant_id || !message) {
+    const { tenant_id, toUserId, message, body, title, url, tag } = requestBody;
+    const tenantId = tenant_id ?? toUserId;
+    const pushBody = message ?? body;
+
+    if (!tenantId || !pushBody) {
       return json({ error: "Missing tenant_id or message" }, 400);
     }
 
@@ -44,7 +51,7 @@ Deno.serve(async (req) => {
     const { data: subscriptions, error } = await admin
       .from("push_subscriptions")
       .select("endpoint, p256dh, auth")
-      .eq("user_id", tenant_id);
+      .eq("user_id", tenantId);
 
     if (error) {
       console.error("Failed to load subscriptions:", error);
@@ -55,10 +62,11 @@ Deno.serve(async (req) => {
       return json({ success: false, sentCount: 0, failedCount: 0, reason: "no_subscription" });
     }
 
-    const payload = JSON.stringify({
+    const notificationPayload = JSON.stringify({
       title: title || "TildaRoom",
-      body: message,
-      url: "/",
+      body: pushBody,
+      url: url || "/",
+      tag: tag || "tildaroom",
     });
 
     let sentCount = 0;
@@ -71,21 +79,26 @@ Deno.serve(async (req) => {
       };
       try {
         // @ts-ignore — library types
-        await webpush.sendNotification(pushSub, payload);
+        await webpush.sendNotification(pushSub, notificationPayload);
         sentCount++;
       } catch (err) {
         failedCount++;
         const statusCode = typeof err === "object" && err && "statusCode" in err
           ? Number((err as { statusCode?: number }).statusCode)
           : 0;
-        if (statusCode === 404 || statusCode === 410) {
+        if (statusCode === 403 || statusCode === 404 || statusCode === 410) {
           await admin.from("push_subscriptions").delete().eq("endpoint", sub.endpoint);
         }
         console.warn("Push send failed:", statusCode, err);
       }
     }
 
-    return json({ success: true, sentCount, failedCount });
+    return json({
+      success: sentCount > 0,
+      sentCount,
+      failedCount,
+      reason: sentCount > 0 ? undefined : "no_deliverable_subscription",
+    });
   } catch (e) {
     console.error("send-push error:", e);
     return json({ error: e instanceof Error ? e.message : String(e) }, 500);
