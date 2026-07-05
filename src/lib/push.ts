@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 
-const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY as string;
+const LOCAL_VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY as string;
+let cachedVapidPublicKey: string | null = null;
 
 // ── Convert VAPID public key (URL-safe base64) → Uint8Array ───────────────
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
@@ -22,6 +23,26 @@ export async function registerSW(): Promise<ServiceWorkerRegistration | null> {
   }
 }
 
+async function getVapidPublicKey(): Promise<string | null> {
+  if (cachedVapidPublicKey) return cachedVapidPublicKey;
+
+  try {
+    const { data, error } = await supabase.functions.invoke("send-push", {
+      body: { action: "vapid-public-key" },
+    });
+    const publicKey = typeof data?.publicKey === "string" ? data.publicKey : null;
+    if (!error && publicKey) {
+      cachedVapidPublicKey = publicKey;
+      return publicKey;
+    }
+  } catch (e) {
+    console.warn("Failed to load push public key from server:", e);
+  }
+
+  cachedVapidPublicKey = LOCAL_VAPID_PUBLIC_KEY || null;
+  return cachedVapidPublicKey;
+}
+
 // ── Subscribe browser to Web Push and store in Supabase ───────────────────
 export async function subscribePush(userId: string): Promise<boolean> {
   if (!("PushManager" in window)) return false;
@@ -32,14 +53,15 @@ export async function subscribePush(userId: string): Promise<boolean> {
         : Notification.permission;
     if (permission !== "granted") return false;
   }
-  if (!VAPID_PUBLIC_KEY) {
-    console.warn("VITE_VAPID_PUBLIC_KEY not set — push disabled");
+  const vapidPublicKey = await getVapidPublicKey();
+  if (!vapidPublicKey) {
+    console.warn("VAPID public key not set — push disabled");
     return false;
   }
 
   try {
     const reg = await navigator.serviceWorker.ready;
-    const applicationServerKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
+    const applicationServerKey = urlBase64ToUint8Array(vapidPublicKey);
     let sub = await reg.pushManager.getSubscription();
 
     const existingKey = sub?.options.applicationServerKey;
