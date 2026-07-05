@@ -7,7 +7,7 @@ import webpush from "npm:web-push@3";
 
 const SUPABASE_URL     = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const VAPID_PUBLIC     = Deno.env.get("VITE_VAPID_PUBLIC_KEY") ?? Deno.env.get("VAPID_PUBLIC_KEY")!;
+const VAPID_PUBLIC     = Deno.env.get("VAPID_PUBLIC_KEY") ?? Deno.env.get("VITE_VAPID_PUBLIC_KEY")!;
 const VAPID_PRIVATE    = Deno.env.get("VAPID_PRIVATE_KEY")!;
 const rawVapidSubject  = Deno.env.get("VAPID_SUBJECT") ?? "admin@tildaroom.app";
 const VAPID_SUBJECT    = rawVapidSubject.includes(":") ? rawVapidSubject : `mailto:${rawVapidSubject}`;
@@ -33,7 +33,12 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
   try {
-    const { tenant_id, toUserId, message, body, title, url, tag } = await req.json();
+    const payload = await req.json();
+    if (payload?.action === "vapid-public-key") {
+      return json({ publicKey: VAPID_PUBLIC });
+    }
+
+    const { tenant_id, toUserId, message, body, title, url, tag } = payload;
     const tenantId = tenant_id ?? toUserId;
     const pushBody = message ?? body;
 
