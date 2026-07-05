@@ -52,7 +52,7 @@ Deno.serve(async (req) => {
     }
 
     if (!subscriptions?.length) {
-      return json({ error: "No subscriptions found for tenant" }, 404);
+      return json({ success: false, sentCount: 0, failedCount: 0, reason: "no_subscription" });
     }
 
     const payload = JSON.stringify({
