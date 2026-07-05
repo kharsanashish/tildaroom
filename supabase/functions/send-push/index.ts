@@ -33,12 +33,12 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
   try {
-    const payload = await req.json();
-    if (payload?.action === "vapid-public-key") {
+    const requestBody = await req.json();
+    if (requestBody?.action === "vapid-public-key") {
       return json({ publicKey: VAPID_PUBLIC });
     }
 
-    const { tenant_id, toUserId, message, body, title, url, tag } = payload;
+    const { tenant_id, toUserId, message, body, title, url, tag } = requestBody;
     const tenantId = tenant_id ?? toUserId;
     const pushBody = message ?? body;
 
@@ -62,7 +62,7 @@ Deno.serve(async (req) => {
       return json({ success: false, sentCount: 0, failedCount: 0, reason: "no_subscription" });
     }
 
-    const payload = JSON.stringify({
+    const notificationPayload = JSON.stringify({
       title: title || "TildaRoom",
       body: pushBody,
       url: url || "/",
@@ -79,7 +79,7 @@ Deno.serve(async (req) => {
       };
       try {
         // @ts-ignore — library types
-        await webpush.sendNotification(pushSub, payload);
+        await webpush.sendNotification(pushSub, notificationPayload);
         sentCount++;
       } catch (err) {
         failedCount++;
