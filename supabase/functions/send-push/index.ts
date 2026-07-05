@@ -7,7 +7,7 @@ import webpush from "npm:web-push@3";
 
 const SUPABASE_URL     = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const VAPID_PUBLIC     = Deno.env.get("VAPID_PUBLIC_KEY") ?? Deno.env.get("VITE_VAPID_PUBLIC_KEY")!;
+const VAPID_PUBLIC     = Deno.env.get("VITE_VAPID_PUBLIC_KEY") ?? Deno.env.get("VAPID_PUBLIC_KEY")!;
 const VAPID_PRIVATE    = Deno.env.get("VAPID_PRIVATE_KEY")!;
 const rawVapidSubject  = Deno.env.get("VAPID_SUBJECT") ?? "admin@tildaroom.app";
 const VAPID_SUBJECT    = rawVapidSubject.includes(":") ? rawVapidSubject : `mailto:${rawVapidSubject}`;
@@ -33,9 +33,11 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
   try {
-    const { tenant_id, message, title } = await req.json();
+    const { tenant_id, toUserId, message, body, title, url, tag } = await req.json();
+    const tenantId = tenant_id ?? toUserId;
+    const pushBody = message ?? body;
 
-    if (!tenant_id || !message) {
+    if (!tenantId || !pushBody) {
       return json({ error: "Missing tenant_id or message" }, 400);
     }
 
@@ -44,7 +46,7 @@ Deno.serve(async (req) => {
     const { data: subscriptions, error } = await admin
       .from("push_subscriptions")
       .select("endpoint, p256dh, auth")
-      .eq("user_id", tenant_id);
+      .eq("user_id", tenantId);
 
     if (error) {
       console.error("Failed to load subscriptions:", error);
@@ -57,8 +59,9 @@ Deno.serve(async (req) => {
 
     const payload = JSON.stringify({
       title: title || "TildaRoom",
-      body: message,
-      url: "/",
+      body: pushBody,
+      url: url || "/",
+      tag: tag || "tildaroom",
     });
 
     let sentCount = 0;
@@ -78,14 +81,19 @@ Deno.serve(async (req) => {
         const statusCode = typeof err === "object" && err && "statusCode" in err
           ? Number((err as { statusCode?: number }).statusCode)
           : 0;
-        if (statusCode === 404 || statusCode === 410) {
+        if (statusCode === 403 || statusCode === 404 || statusCode === 410) {
           await admin.from("push_subscriptions").delete().eq("endpoint", sub.endpoint);
         }
         console.warn("Push send failed:", statusCode, err);
       }
     }
 
-    return json({ success: true, sentCount, failedCount });
+    return json({
+      success: sentCount > 0,
+      sentCount,
+      failedCount,
+      reason: sentCount > 0 ? undefined : "no_deliverable_subscription",
+    });
   } catch (e) {
     console.error("send-push error:", e);
     return json({ error: e instanceof Error ? e.message : String(e) }, 500);
