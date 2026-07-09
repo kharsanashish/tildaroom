@@ -241,40 +241,40 @@ function OwnerDashboard() {
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {unreadFlats.map((f) => {
-                      const msg = `Hi ${f.tenant_name || "Tenant"}, please submit your meter reading for ${monthLabel(month, year)}.`;
-                      const hasAccount = !!f.tenant_id;
-                      const wa = f.tenant_whatsapp.replace(/\D/g, "");
+                      const monthName = MONTH_NAMES[month - 1];
+                      const reading = currentReadings.find((r) => r.flat_id === f.id);
+                      const totalAmount = reading
+                        ? Number(reading.total_due)
+                        : Number(f.rent) + Number(f.maintenance ?? 0) + Number(f.other_charges);
+                      const electricityNote = reading
+                        ? " (including electricity charges)"
+                        : " (excluding electricity charges)";
+                      const dueClause = f.due_date
+                        ? ` your due date is ${String(f.due_date).padStart(2, "0")}/${monthName}`
+                        : "";
+                      const msg = `Mr.${f.tenant_name || "Tenant"} your rent is due for the ${monthName} month that is ₹${Math.round(totalAmount)}${electricityNote}${dueClause} please pay timely, Ignore if already paid. Thank You`;
+                      // Normalize mobile: strip non-digits, ensure country code
+                      const rawMobile = (f.tenant_whatsapp || f.tenant_mobile || "").replace(/\D/g, "");
+                      const mobile = rawMobile.length === 10 ? `91${rawMobile}` : rawMobile;
+                      const hasMobile = mobile.length >= 11;
                       return (
                         <Button
                           key={f.id}
                           size="sm"
                           variant="outline"
                           className="h-7 text-xs border-warning/50"
-                          onClick={async () => {
-                            if (hasAccount) {
-                              const result = await sendPush({
-                                toUserId: f.tenant_id!,
-                                title: "Meter Reading Reminder",
-                                body: msg,
-                                url: "/tenant",
-                                tag: "reading-reminder",
-                              });
-                              if (result.ok) {
-                                toast.success(`Push reminder sent to Flat ${f.flat_number}`);
-                              } else {
-                                toast.error(result.error ?? "Tenant has not enabled notifications yet");
-                              }
-                            } else if (wa) {
-                              window.open(
-                                `https://wa.me/91${wa}?text=${encodeURIComponent(msg)}`,
-                                "_blank",
-                                "noopener,noreferrer",
-                              );
-                            } else {
-                              toast.error("No tenant account or WhatsApp number");
+                          onClick={() => {
+                            if (!hasMobile) {
+                              toast.error("No mobile number on file");
+                              return;
                             }
+                            window.open(
+                              `https://wa.me/${mobile}?text=${encodeURIComponent(msg)}`,
+                              "_blank",
+                              "noopener,noreferrer",
+                            );
                           }}
-                          title={hasAccount ? "Send browser push notification" : "Send WhatsApp reminder"}
+                          title="Send WhatsApp reminder"
                         >
                           <Bell className="h-3 w-3 mr-1" />
                           Remind Flat {f.flat_number}
