@@ -48,6 +48,9 @@ export function FlatDialog({
   const [securityDeposit, setSecurityDeposit] = useState(
     String(flat?.security_deposit ?? "")
   );
+  const [dueDate, setDueDate] = useState(
+    flat?.due_date != null ? String(flat.due_date) : ""
+  );
   const [saving, setSaving] = useState(false);
 
   const createTenantFn = useServerFn(createTenant);
