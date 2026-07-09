@@ -25,6 +25,7 @@ interface Flat {
   other_charges: number;
   prev_meter_reading: number;
   security_deposit: number;
+  due_date?: number | null;
 }
 
 export function FlatDialog({
@@ -47,6 +48,9 @@ export function FlatDialog({
   const [securityDeposit, setSecurityDeposit] = useState(
     String(flat?.security_deposit ?? "")
   );
+  const [dueDate, setDueDate] = useState(
+    flat?.due_date != null ? String(flat.due_date) : ""
+  );
   const [saving, setSaving] = useState(false);
 
   const createTenantFn = useServerFn(createTenant);
@@ -58,6 +62,7 @@ export function FlatDialog({
     try {
       let flatId = flat?.id;
       const wa = whatsapp.replace(/\D/g, "");
+      const dueDay = dueDate.trim() === "" ? null : Math.min(31, Math.max(1, parseInt(dueDate, 10) || 0)) || null;
       if (flat) {
         const { error } = await supabase.from("flats").update({
           flat_number: flatNumber,
@@ -69,6 +74,7 @@ export function FlatDialog({
           other_charges: Number(other) || 0,
           prev_meter_reading: Number(prev) || 0,
           security_deposit: Number(securityDeposit) || 0,
+          due_date: dueDay,
         }).eq("id", flat.id);
         if (error) throw error;
       } else {
@@ -82,6 +88,7 @@ export function FlatDialog({
           other_charges: Number(other) || 0,
           prev_meter_reading: Number(prev) || 0,
           security_deposit: Number(securityDeposit) || 0,
+          due_date: dueDay,
         }).select().single();
         if (error) throw error;
         flatId = data.id;
@@ -245,6 +252,19 @@ export function FlatDialog({
                 placeholder="0"
               />
             </div>
+          </div>
+          <div>
+            <Label>Due Date (day of month)</Label>
+            <Input
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={31}
+              step={1}
+              placeholder="e.g. 10"
+            />
           </div>
 
           {flat?.tenant_id && (

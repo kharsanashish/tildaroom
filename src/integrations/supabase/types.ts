@@ -41,6 +41,7 @@ export type Database = {
       flats: {
         Row: {
           created_at: string
+          due_date: number | null
           flat_number: string
           id: string
           is_vacant: boolean
@@ -58,6 +59,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          due_date?: number | null
           flat_number: string
           id?: string
           is_vacant?: boolean
@@ -75,6 +77,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          due_date?: number | null
           flat_number?: string
           id?: string
           is_vacant?: boolean
