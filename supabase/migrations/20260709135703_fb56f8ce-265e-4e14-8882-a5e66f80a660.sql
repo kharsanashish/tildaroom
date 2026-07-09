@@ -1,0 +1,1 @@
+ALTER TABLE public.flats ADD COLUMN IF NOT EXISTS due_date integer CHECK (due_date IS NULL OR (due_date BETWEEN 1 AND 31));
