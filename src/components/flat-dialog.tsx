@@ -62,6 +62,7 @@ export function FlatDialog({
     try {
       let flatId = flat?.id;
       const wa = whatsapp.replace(/\D/g, "");
+      const dueDay = dueDate.trim() === "" ? null : Math.min(31, Math.max(1, parseInt(dueDate, 10) || 0)) || null;
       if (flat) {
         const { error } = await supabase.from("flats").update({
           flat_number: flatNumber,
@@ -73,6 +74,7 @@ export function FlatDialog({
           other_charges: Number(other) || 0,
           prev_meter_reading: Number(prev) || 0,
           security_deposit: Number(securityDeposit) || 0,
+          due_date: dueDay,
         }).eq("id", flat.id);
         if (error) throw error;
       } else {
@@ -86,6 +88,7 @@ export function FlatDialog({
           other_charges: Number(other) || 0,
           prev_meter_reading: Number(prev) || 0,
           security_deposit: Number(securityDeposit) || 0,
+          due_date: dueDay,
         }).select().single();
         if (error) throw error;
         flatId = data.id;
