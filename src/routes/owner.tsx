@@ -14,7 +14,7 @@ import { getRateFor } from "@/lib/rates";
 import { RatePrompt } from "@/components/rate-prompt";
 import { JanuaryReview } from "@/components/january-review";
 import { RatesManager } from "@/components/rates-manager";
-import { subscribePush, sendPush } from "@/lib/push";
+import { subscribePush } from "@/lib/push";
 
 // Extracted components
 import { StatCard } from "@/components/stat-card";
