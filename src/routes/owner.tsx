@@ -46,6 +46,7 @@ interface Flat {
   prev_meter_reading: number;
   security_deposit: number;
   is_vacant?: boolean;
+  due_date?: number | null;
 }
 interface Reading {
   id: string;
