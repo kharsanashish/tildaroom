@@ -243,16 +243,22 @@ function OwnerDashboard() {
                     {unreadFlats.map((f) => {
                       const monthName = MONTH_NAMES[month - 1];
                       const reading = currentReadings.find((r) => r.flat_id === f.id);
-                      const totalAmount = reading
-                        ? Number(reading.total_due)
-                        : Number(f.rent) + Number(f.maintenance ?? 0) + Number(f.other_charges);
+                      // Match tenant Bill Breakdown "To Be Paid" (शेष देय) = total_due - amount_paid
+                      const toBePaid = reading
+                        ? Math.max(0, Number(reading.total_due) - Number(reading.amount_paid))
+                        : null;
+                      const dueAmount = toBePaid !== null && toBePaid > 0
+                        ? toBePaid
+                        : reading
+                          ? Number(reading.total_due)
+                          : Number(f.rent) + Number(f.maintenance ?? 0) + Number(f.other_charges);
                       const electricityNote = reading
                         ? " (including electricity charges)"
                         : " (excluding electricity charges)";
                       const dueClause = f.due_date
                         ? ` your due date is ${String(f.due_date).padStart(2, "0")}/${monthName}`
                         : "";
-                      const msg = `Mr.${f.tenant_name || "Tenant"} your rent is due for the ${monthName} month that is ₹${Math.round(totalAmount)}${electricityNote}${dueClause} please pay timely, Ignore if already paid. Thank You`;
+                      const msg = `Mr. ${f.tenant_name || "Tenant"} your rent is due for the ${monthName} month that is ₹${Math.round(dueAmount)}${electricityNote}${dueClause} please pay timely, Ignore if already paid. Thank You`;
                       // Normalize mobile: strip non-digits, ensure country code
                       const rawMobile = (f.tenant_whatsapp || f.tenant_mobile || "").replace(/\D/g, "");
                       const mobile = rawMobile.length === 10 ? `91${rawMobile}` : rawMobile;
