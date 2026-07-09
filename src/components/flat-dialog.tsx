@@ -253,6 +253,19 @@ export function FlatDialog({
               />
             </div>
           </div>
+          <div>
+            <Label>Due Date (day of month)</Label>
+            <Input
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={31}
+              step={1}
+              placeholder="e.g. 10"
+            />
+          </div>
 
           {flat?.tenant_id && (
             <div className="pt-2 border-t">
