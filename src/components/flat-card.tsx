@@ -3,7 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { MessageCircle, Zap, Home } from "lucide-react";
+import { MessageCircle, Zap, Home, Bell } from "lucide-react";
 import { formatINR, monthLabel, statusColor, statusLabel, type PaymentStatus } from "@/lib/billing";
 import { OwnerReadingDialog } from "@/components/owner-reading-dialog";
 import { FlatDialog } from "@/components/flat-dialog";
