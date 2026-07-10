@@ -16,7 +16,13 @@ interface Flat {
   rent: number; maintenance: number; other_charges: number;
   prev_meter_reading: number; security_deposit: number;
   is_vacant?: boolean;
+  due_date?: number | null;
 }
+
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
 
 interface Reading {
   id: string; flat_id: string; month: number; year: number;
@@ -50,16 +56,44 @@ export function FlatCard({ flat, reading, allReadings, monthRate, month, year, o
 
   const status: PaymentStatus = reading?.payment_status ?? "pending";
   const fallbackDue = Number(flat.rent) + Number(flat.maintenance ?? 0) + Number(flat.other_charges);
+
+  // Opening balance: unpaid (or overpaid) amount carried from the tenant's
+  // most recent prior reading — same logic as tenant.tsx / owner.tsx.
+  const openingBalance = (() => {
+    const prev = [...allReadings]
+      .filter((r) => r.flat_id === flat.id && !(r.month === month && r.year === year))
+      .sort((a, b) => b.year - a.year || b.month - a.month)[0];
+    if (!prev) return 0;
+    const approved = prev.payment_status === "paid" || prev.payment_status === "partial";
+    return (approved ? Number(prev.amount_paid) : 0) - Number(prev.total_due);
+  })();
+
   const due = reading
     ? Number(reading.total_due) - Number(reading.amount_paid)
-    : fallbackDue;
+    : fallbackDue - openingBalance;
   const flatReadings = allReadings.filter((r) => r.flat_id === flat.id);
   const canEditReading = !isVacant && status !== "paid" && status !== "pending_approval";
   const waNumber = (flat.tenant_whatsapp || "").replace(/\D/g, "");
 
-  const waMessage = reading
-    ? `Hi ${flat.tenant_name || "Tenant"}, your bill for ${monthLabel(month, year)} is ₹${Number(reading.total_due).toFixed(0)}. Please pay at your earliest convenience.`
-    : `Hi ${flat.tenant_name || "Tenant"}, please submit your meter reading for ${monthLabel(month, year)}.`;
+  // Amount to remind about: deduct any partial payment already made this
+  // month; if fully unpaid, use the full bill; if no reading yet, fall
+  // back to base charges adjusted for opening balance carried forward.
+  const toBePaid = reading
+    ? Math.max(0, Number(reading.total_due) - Number(reading.amount_paid))
+    : null;
+  const dueAmount = toBePaid !== null && toBePaid > 0
+    ? toBePaid
+    : reading
+      ? Number(reading.total_due)
+      : fallbackDue - openingBalance;
+  const monthName = MONTH_NAMES[month - 1];
+  const electricityNote = reading
+    ? " (including electricity charges)"
+    : " (excluding electricity charges)";
+  const dueClause = flat.due_date
+    ? ` your due date is ${String(flat.due_date).padStart(2, "0")}/${monthName}`
+    : "";
+  const waMessage = `Mr. ${flat.tenant_name || "Tenant"} your rent is due for the ${monthName} month that is ₹${Math.round(dueAmount)}${electricityNote}${dueClause} please pay timely, Ignore if already paid. Thank You`;
 
   const toggleVacant = async () => {
     setTogglingVacant(true);
