@@ -73,7 +73,10 @@ export function FlatCard({ flat, reading, allReadings, monthRate, month, year, o
     : fallbackDue - openingBalance;
   const flatReadings = allReadings.filter((r) => r.flat_id === flat.id);
   const canEditReading = !isVacant && status !== "paid" && status !== "pending_approval";
-  const waNumber = (flat.tenant_whatsapp || "").replace(/\D/g, "");
+  const rawMobile = (flat.tenant_whatsapp || flat.tenant_mobile || "").replace(/\D/g, "");
+  const mobile = rawMobile.length === 10 ? `91${rawMobile}` : rawMobile;
+  const hasMobile = mobile.length >= 11;
+  const waNumber = mobile;
 
   // Amount to remind about: deduct any partial payment already made this
   // month; if fully unpaid, use the full bill; if no reading yet, fall
