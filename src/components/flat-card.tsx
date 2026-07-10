@@ -3,7 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { MessageCircle, Zap, Home, Bell } from "lucide-react";
+import { MessageCircle, Zap, Home } from "lucide-react";
 import { formatINR, monthLabel, statusColor, statusLabel, type PaymentStatus } from "@/lib/billing";
 import { OwnerReadingDialog } from "@/components/owner-reading-dialog";
 import { FlatDialog } from "@/components/flat-dialog";
@@ -73,10 +73,7 @@ export function FlatCard({ flat, reading, allReadings, monthRate, month, year, o
     : fallbackDue - openingBalance;
   const flatReadings = allReadings.filter((r) => r.flat_id === flat.id);
   const canEditReading = !isVacant && status !== "paid" && status !== "pending_approval";
-  const rawMobile = (flat.tenant_whatsapp || flat.tenant_mobile || "").replace(/\D/g, "");
-  const mobile = rawMobile.length === 10 ? `91${rawMobile}` : rawMobile;
-  const hasMobile = mobile.length >= 11;
-  const waNumber = mobile;
+  const waNumber = (flat.tenant_whatsapp || "").replace(/\D/g, "");
 
   // Amount to remind about: deduct any partial payment already made this
   // month; if fully unpaid, use the full bill; if no reading yet, fall
@@ -138,10 +135,10 @@ export function FlatCard({ flat, reading, allReadings, monthRate, month, year, o
           </div>
         </div>
         <div className="flex items-center gap-1" onClick={stop}>
-          {hasMobile && !isVacant && (
+          {waNumber && !isVacant && (
             <Button variant="ghost" size="icon" className="h-8 w-8 text-success" asChild
               title={reading ? "Send bill reminder" : "Remind to submit reading"}>
-              <a href={`https://wa.me/${mobile}?text=${encodeURIComponent(waMessage)}`}
+              <a href={`https://wa.me/91${waNumber}?text=${encodeURIComponent(waMessage)}`}
                 target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
                 <MessageCircle className="h-4 w-4" />
               </a>
@@ -214,30 +211,6 @@ export function FlatCard({ flat, reading, allReadings, monthRate, month, year, o
             <Home className="h-3.5 w-3.5 mr-1" />
             {isVacant ? "Vacant: ON" : "Vacant: OFF"}
           </Button>
-
-          {!isVacant && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-7 text-xs border-warning/50"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (!hasMobile) {
-                  toast.error("No mobile number on file");
-                  return;
-                }
-                window.open(
-                  `https://wa.me/${mobile}?text=${encodeURIComponent(waMessage)}`,
-                  "_blank",
-                  "noopener,noreferrer",
-                );
-              }}
-              title="Send WhatsApp reminder"
-            >
-              <Bell className="h-3 w-3 mr-1" />
-              Remind Flat {flat.flat_number}
-            </Button>
-          )}
 
           {canEditReading && (
             <OwnerReadingDialog
