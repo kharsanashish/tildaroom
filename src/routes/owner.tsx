@@ -247,14 +247,14 @@ function OwnerDashboard() {
               <FlatDialog onSaved={refresh} />
             </div>
 
-            {/* FEATURE: Remind unread tenants alert banner */}
-            {unreadFlats.length > 0 && (
+            {/* FEATURE: Remind tenants with outstanding rent */}
+            {pendingFlats.length > 0 && (
               <Card className="p-3 border-warning/40 bg-warning/10">
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                   <div className="flex items-center gap-2">
                     <Bell className="h-4 w-4 text-warning flex-shrink-0" />
                     <span className="text-sm font-medium">
-                      {unreadFlats.length} flat{unreadFlats.length > 1 ? "s haven't" : " hasn't"} submitted a reading yet
+                      {pendingFlats.length} flat{pendingFlats.length > 1 ? "s have" : " has"} outstanding rent
                     </span>
                   </div>
                   <div className="flex flex-wrap gap-2">
