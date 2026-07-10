@@ -258,7 +258,7 @@ function OwnerDashboard() {
                     </span>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {unreadFlats.map((f) => {
+                    {pendingFlats.map((f) => {
                       const monthName = MONTH_NAMES[month - 1];
                       const reading = currentReadings.find((r) => r.flat_id === f.id);
                       // Match tenant Bill Breakdown "To Be Paid" (शेष देय) = total_due - amount_paid
