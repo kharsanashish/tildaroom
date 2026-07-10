@@ -276,7 +276,10 @@ function OwnerDashboard() {
                       const dueClause = f.due_date
                         ? ` your due date is ${String(f.due_date).padStart(2, "0")}/${monthName}`
                         : "";
-                      const msg = `Mr. ${f.tenant_name || "Tenant"} your rent is due for the ${monthName} month that is ₹${Math.round(dueAmount)}${electricityNote}${dueClause} please pay timely, Ignore if already paid. Thank You`;
+                      const loginLine = f.tenant_mobile
+                        ? `\n\nLogin: https://tildaroom.lovable.app\nUsername: ${f.tenant_mobile}\nPassword: (as shared earlier)`
+                        : `\n\nLogin: https://tildaroom.lovable.app`;
+                      const msg = `Mr. ${f.tenant_name || "Tenant"} your rent is due for the ${monthName} month that is ₹${Math.round(dueAmount)}${electricityNote}${dueClause} please pay timely, Ignore if already paid. Thank You${loginLine}`;
                       // Normalize mobile: strip non-digits, ensure country code
                       const rawMobile = (f.tenant_whatsapp || f.tenant_mobile || "").replace(/\D/g, "");
                       const mobile = rawMobile.length === 10 ? `91${rawMobile}` : rawMobile;
