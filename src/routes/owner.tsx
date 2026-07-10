@@ -119,6 +119,17 @@ function OwnerDashboard() {
     [readings, month, year],
   );
 
+  // Same opening-balance logic as tenant.tsx: carries forward any unpaid
+  // (or overpaid) amount from the tenant's most recent prior reading.
+  const openingBalanceFor = (flatId: string) => {
+    const prev = [...readings]
+      .filter((r) => r.flat_id === flatId && !(r.month === month && r.year === year))
+      .sort((a, b) => b.year - a.year || b.month - a.month)[0];
+    if (!prev) return 0;
+    const approved = prev.payment_status === "paid" || prev.payment_status === "partial";
+    return (approved ? Number(prev.amount_paid) : 0) - Number(prev.total_due);
+  };
+
   // Stats: Expected / Collected / Pending — skip vacant flats
   const stats = useMemo(() => {
     let expected = 0, collected = 0, pending = 0;
@@ -135,13 +146,13 @@ function OwnerDashboard() {
           pending += Number(r.total_due);
         }
       } else {
-        const fallback = Number(f.rent) + Number(f.maintenance ?? 0) + Number(f.other_charges);
+        const fallback = Number(f.rent) + Number(f.maintenance ?? 0) + Number(f.other_charges) - openingBalanceFor(f.id);
         expected += fallback;
         pending += fallback;
       }
     }
     return { expected, collected, pending };
-  }, [flats, currentReadings]);
+  }, [flats, currentReadings, readings]);
 
   // Flats that haven't submitted a reading (skip vacant)
   const unreadFlats = useMemo(
@@ -251,7 +262,7 @@ function OwnerDashboard() {
                         ? toBePaid
                         : reading
                           ? Number(reading.total_due)
-                          : Number(f.rent) + Number(f.maintenance ?? 0) + Number(f.other_charges);
+                          : Number(f.rent) + Number(f.maintenance ?? 0) + Number(f.other_charges) - openingBalanceFor(f.id);
                       const electricityNote = reading
                         ? " (including electricity charges)"
                         : " (excluding electricity charges)";
