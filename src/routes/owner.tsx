@@ -154,12 +154,19 @@ function OwnerDashboard() {
     return { expected, collected, pending };
   }, [flats, currentReadings, readings]);
 
-  // Flats that haven't submitted a reading (skip vacant)
-  const unreadFlats = useMemo(
+  // Flats with outstanding rent (no reading or partial/unpaid reading; skip vacant)
+  const outstandingFor = (flat: Flat, reading?: Reading) => {
+    if (reading) {
+      return Math.max(0, Number(reading.total_due) - Number(reading.amount_paid));
+    }
+    return Math.max(0, Number(flat.rent) + Number(flat.maintenance ?? 0) + Number(flat.other_charges) - openingBalanceFor(flat.id));
+  };
+
+  const pendingFlats = useMemo(
     () => flats.filter(
-      (f) => !f.is_vacant && !currentReadings.some((r) => r.flat_id === f.id) && (f.tenant_id || f.tenant_whatsapp)
+      (f) => !f.is_vacant && (f.tenant_id || f.tenant_whatsapp) && outstandingFor(f, currentReadings.find((r) => r.flat_id === f.id)) > 0
     ),
-    [flats, currentReadings],
+    [flats, currentReadings, readings],
   );
 
   const pendingApprovalCount = readings.filter(
