@@ -215,6 +215,30 @@ export function FlatCard({ flat, reading, allReadings, monthRate, month, year, o
             {isVacant ? "Vacant: ON" : "Vacant: OFF"}
           </Button>
 
+          {!isVacant && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs border-warning/50"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (!hasMobile) {
+                  toast.error("No mobile number on file");
+                  return;
+                }
+                window.open(
+                  `https://wa.me/${mobile}?text=${encodeURIComponent(waMessage)}`,
+                  "_blank",
+                  "noopener,noreferrer",
+                );
+              }}
+              title="Send WhatsApp reminder"
+            >
+              <Bell className="h-3 w-3 mr-1" />
+              Remind Flat {flat.flat_number}
+            </Button>
+          )}
+
           {canEditReading && (
             <OwnerReadingDialog
               flat={flat}
