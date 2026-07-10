@@ -138,10 +138,10 @@ export function FlatCard({ flat, reading, allReadings, monthRate, month, year, o
           </div>
         </div>
         <div className="flex items-center gap-1" onClick={stop}>
-          {waNumber && !isVacant && (
+          {hasMobile && !isVacant && (
             <Button variant="ghost" size="icon" className="h-8 w-8 text-success" asChild
               title={reading ? "Send bill reminder" : "Remind to submit reading"}>
-              <a href={`https://wa.me/91${waNumber}?text=${encodeURIComponent(waMessage)}`}
+              <a href={`https://wa.me/${mobile}?text=${encodeURIComponent(waMessage)}`}
                 target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
                 <MessageCircle className="h-4 w-4" />
               </a>
