@@ -154,12 +154,19 @@ function OwnerDashboard() {
     return { expected, collected, pending };
   }, [flats, currentReadings, readings]);
 
-  // Flats that haven't submitted a reading (skip vacant)
-  const unreadFlats = useMemo(
+  // Flats with outstanding rent (no reading or partial/unpaid reading; skip vacant)
+  const outstandingFor = (flat: Flat, reading?: Reading) => {
+    if (reading) {
+      return Math.max(0, Number(reading.total_due) - Number(reading.amount_paid));
+    }
+    return Math.max(0, Number(flat.rent) + Number(flat.maintenance ?? 0) + Number(flat.other_charges) - openingBalanceFor(flat.id));
+  };
+
+  const pendingFlats = useMemo(
     () => flats.filter(
-      (f) => !f.is_vacant && !currentReadings.some((r) => r.flat_id === f.id) && (f.tenant_id || f.tenant_whatsapp)
+      (f) => !f.is_vacant && (f.tenant_id || f.tenant_whatsapp) && outstandingFor(f, currentReadings.find((r) => r.flat_id === f.id)) > 0
     ),
-    [flats, currentReadings],
+    [flats, currentReadings, readings],
   );
 
   const pendingApprovalCount = readings.filter(
@@ -240,18 +247,18 @@ function OwnerDashboard() {
               <FlatDialog onSaved={refresh} />
             </div>
 
-            {/* FEATURE: Remind unread tenants alert banner */}
-            {unreadFlats.length > 0 && (
+            {/* FEATURE: Remind tenants with outstanding rent */}
+            {pendingFlats.length > 0 && (
               <Card className="p-3 border-warning/40 bg-warning/10">
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                   <div className="flex items-center gap-2">
                     <Bell className="h-4 w-4 text-warning flex-shrink-0" />
                     <span className="text-sm font-medium">
-                      {unreadFlats.length} flat{unreadFlats.length > 1 ? "s haven't" : " hasn't"} submitted a reading yet
+                      {pendingFlats.length} flat{pendingFlats.length > 1 ? "s have" : " has"} outstanding rent
                     </span>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {unreadFlats.map((f) => {
+                    {pendingFlats.map((f) => {
                       const monthName = MONTH_NAMES[month - 1];
                       const reading = currentReadings.find((r) => r.flat_id === f.id);
                       // Match tenant Bill Breakdown "To Be Paid" (शेष देय) = total_due - amount_paid
