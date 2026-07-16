@@ -321,35 +321,102 @@ export function exportPaymentReceiptPdf(opts: {
 
   const M = 5;
   const doc = buildThermalPdf(M, (h) => {
-    const { printLine, blank, dashes, center, row2, note } = h;
+    const { printLine, blank, dashes, center, row2, row3, note } = h;
 
+    // ── HEADER ────────────────────────────────────────────────────────
     center(ownerName || "TildaRoom Properties", true);
     if (ownerMobile) center(`Mob: ${ownerMobile}`);
+    center("Rent & Utility Management");
     blank();
     center("PAYMENT RECEIPT", true);
     center(`Installment #${installmentIndex}`);
     blank();
 
-    printLine(`Date: ${today()}`);
+    // ── META ─────────────────────────────────────────────────────────
+    printLine(`Date    : ${today()}`);
+    printLine(`Bill No : ${receiptNo}`);
+    printLine(`Period  : ${monthLabel(r.month, r.year)}`);
+    printLine(`Pay Mode: ${method}`);
+    printLine(`Paid On : ${paidOn}`);
     blank();
+
+    // ── TENANT ───────────────────────────────────────────────────────
+    center("TENANT DETAILS", true);
+    dashes();
     printLine(clip(tenantName || "-", COLS), true);
-    printLine(`Flat: ${flatNumber}`);
+    printLine(`Flat  : ${flatNumber}`);
     if (tenantMobile) {
       const mob = tenantMobile.replace(/\D/g, "");
       printLine(`Mobile: ${mob.length === 10 ? mob.replace(/(\d{5})(\d{5})/, "$1 $2") : mob}`);
     }
-    blank();
-    printLine(`Receipt No: ${receiptNo}`);
-    printLine(`Payment Mode: ${method}`);
-    printLine(`Period: ${monthLabel(r.month, r.year)}`);
     dashes();
 
+    // ── BILL BREAKDOWN (same period bill this payment covers) ────────
+    center("BILL BREAKDOWN", true);
+    dashes();
+    row3("Item", "Qty", "Amt", true);
+    dashes();
+
+    const units = Number(r.units);
+    const rate  = Number(r.rate_per_unit);
+    const elec  = Number(r.electricity_bill);
+    const rent  = Number(r.rent);
+    const maint = Number(r.maintenance ?? 0);
+    const other = Number(r.other_charges);
+    const ob    = Number(r.opening_balance);
+
+    let subTotal = 0;
+    if (r.curr_reading != null) {
+      row3("Electricity", units.toFixed(0), elec.toFixed(2));
+      note(`Prev ${Number(r.prev_reading).toFixed(0)} Curr ${Number(r.curr_reading).toFixed(0)}`);
+      note(`${units.toFixed(0)}u x Rs${rate.toFixed(2)} = Rs${elec.toFixed(2)}`);
+      subTotal += elec;
+    } else {
+      note("Meter reading not submitted yet");
+    }
+
+    row3("Rent", "1", rent.toFixed(2));
+    note("Monthly rent for the flat");
+    subTotal += rent;
+
+    if (maint > 0) {
+      row3("Maintenance", "1", maint.toFixed(2));
+      note("Common area & building upkeep");
+      subTotal += maint;
+    }
+    if (other > 0) {
+      row3("Other Charges", "1", other.toFixed(2));
+      note("Miscellaneous charges this period");
+      subTotal += other;
+    }
+
+    dashes();
+    row3("Sub Total", "", subTotal.toFixed(2), true);
+    if (ob !== 0) {
+      const isOwed = ob < 0;
+      row2(
+        isOwed ? "(+) Last Month Due" : "(-) Last Month Adv.",
+        Math.abs(ob).toFixed(2),
+      );
+      note(isOwed ? "Carried fwd, unpaid last month" : "Carried fwd, extra paid last month");
+    }
+    dashes();
+    row2("TOTAL BILL", `Rs ${due.toFixed(2)}`, true);
+    dashes();
+
+    // ── PAYMENT LEDGER (running balance for this month) ──────────────
+    center("PAYMENT LEDGER", true);
+    dashes();
     row2("Total Due", `Rs ${due.toFixed(2)}`, true);
     if (paidBefore > 0) {
       row2("Previously Paid", `Rs ${paidBefore.toFixed(2)}`);
-      note("Earlier approved installments");
+      note("Sum of earlier approved installments");
+    } else {
+      row2("Previously Paid", "Rs 0.00");
+      note("No earlier installments this month");
     }
-    row2("This Payment", `Rs ${thisAmt.toFixed(2)}`, true);
+    row2(`Installment #${installmentIndex}`, `Rs ${thisAmt.toFixed(2)}`, true);
+    note(`Received via ${method}`);
     dashes();
     if (p.status === "approved") {
       row2("Total Paid", `Rs ${cumPaid.toFixed(2)}`, true);
@@ -361,17 +428,36 @@ export function exportPaymentReceiptPdf(opts: {
         note("Fully paid - no balance due");
       }
     } else {
-      note("Balance will update once owner approves.");
+      row2("Awaiting Approval", `Rs ${thisAmt.toFixed(2)}`, true);
+      note("Balance will update once owner approves");
     }
-    printLine(`Paid On: ${paidOn}`);
-
-    blank();
     dashes();
+
+    // ── STATUS STAMP ─────────────────────────────────────────────────
+    blank();
     center(`*** ${stamp} ***`, true);
     blank();
+
+    // ── NOTES / TERMS ────────────────────────────────────────────────
+    center("NOTES", true);
+    dashes();
+    note("1. Keep this receipt for your records.");
+    note("2. Pending payments become approved once verified by the owner.");
+    note("3. Any advance paid is adjusted against the next month's bill.");
+    note("4. Unpaid balance carries forward to the following month.");
+    note("5. For disputes contact the owner within 7 days of receipt date.");
+    dashes();
+
+    // ── FOOTER ───────────────────────────────────────────────────────
+    blank();
+    center("Thank you for your payment!");
+    if (ownerName) center(`- ${ownerName}`);
+    blank();
     center("Computer-generated receipt");
+    center("No physical signature required");
     center("E & O.E");
   });
+
 
   const flatPart = `Flat${flatNumber.replace(/\s+/g, "")}`;
   const periodPart = monthLabel(r.month, r.year).replace(" ", "_");
