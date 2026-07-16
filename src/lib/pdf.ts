@@ -409,12 +409,17 @@ export function exportPaymentReceiptPdf(opts: {
     }
     dashes();
     row2("TOTAL BILL", `Rs ${due.toFixed(2)}`, true);
+    if (Math.abs(roundOff) >= 0.005) {
+      const sign = roundOff < 0 ? "-" : "+";
+      row2("ROUND OFF", `Rs ${sign}${Math.abs(roundOff).toFixed(2)}`);
+      note(roundOff < 0 ? "Discount to round total" : "Adjustment to round total");
+    }
     dashes();
 
     // ── PAYMENT LEDGER (running balance for this month) ──────────────
     center("PAYMENT LEDGER", true);
     dashes();
-    row2("Total Due", `Rs ${due.toFixed(2)}`, true);
+    row2("Total Due", `Rs ${dueRounded.toFixed(2)}`, true);
     if (paidBefore > 0) {
       row2("Previously Paid", `Rs ${paidBefore.toFixed(2)}`);
       note("Sum of earlier approved installments");
