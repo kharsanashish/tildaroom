@@ -149,10 +149,10 @@ export function OwnerReadingDialog({
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-          <Button onClick={save} disabled={saving || !val}>
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : current ? "Update" : "Save"}
-          </Button>
+          <div className="flex-1 text-xs text-muted-foreground">
+            {saving ? "Saving…" : "Changes save automatically"}
+          </div>
+          <Button onClick={() => setOpen(false)}>Done</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
