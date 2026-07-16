@@ -310,9 +310,16 @@ export function exportPaymentReceiptPdf(opts: {
           flatNumber, tenantName, tenantMobile, ownerName, ownerMobile } = opts;
 
   const due       = Number(r.total_due);
+  // Rounding rule: fractional part > 0.5 rounds up, <= 0.5 rounds down.
+  // e.g. 102.51 -> 103, 102.50 -> 102. Difference shown as ROUND OFF discount.
+  const dueRounded = (() => {
+    const f = due - Math.floor(due);
+    return f > 0.5 ? Math.ceil(due) : Math.floor(due);
+  })();
+  const roundOff  = dueRounded - due; // typically negative (a discount)
   const thisAmt   = Number(p.amount);
   const cumPaid   = paidBefore + (p.status === "approved" ? thisAmt : 0);
-  const balance   = Math.max(0, due - cumPaid);
+  const balance   = Math.max(0, dueRounded - cumPaid);
   const method    = (p.method || "UPI").toUpperCase();
   const stamp     = p.status === "approved" ? "APPROVED"
                   : p.status === "rejected" ? "REJECTED" : "PENDING APPROVAL";
