@@ -310,9 +310,16 @@ export function exportPaymentReceiptPdf(opts: {
           flatNumber, tenantName, tenantMobile, ownerName, ownerMobile } = opts;
 
   const due       = Number(r.total_due);
+  // Rounding rule: fractional part > 0.5 rounds up, <= 0.5 rounds down.
+  // e.g. 102.51 -> 103, 102.50 -> 102. Difference shown as ROUND OFF discount.
+  const dueRounded = (() => {
+    const f = due - Math.floor(due);
+    return f > 0.5 ? Math.ceil(due) : Math.floor(due);
+  })();
+  const roundOff  = dueRounded - due; // typically negative (a discount)
   const thisAmt   = Number(p.amount);
   const cumPaid   = paidBefore + (p.status === "approved" ? thisAmt : 0);
-  const balance   = Math.max(0, due - cumPaid);
+  const balance   = Math.max(0, dueRounded - cumPaid);
   const method    = (p.method || "UPI").toUpperCase();
   const stamp     = p.status === "approved" ? "APPROVED"
                   : p.status === "rejected" ? "REJECTED" : "PENDING APPROVAL";
@@ -402,12 +409,17 @@ export function exportPaymentReceiptPdf(opts: {
     }
     dashes();
     row2("TOTAL BILL", `Rs ${due.toFixed(2)}`, true);
+    if (Math.abs(roundOff) >= 0.005) {
+      const sign = roundOff < 0 ? "-" : "+";
+      row2("ROUND OFF", `Rs ${sign}${Math.abs(roundOff).toFixed(2)}`);
+      note(roundOff < 0 ? "Discount to round total" : "Adjustment to round total");
+    }
     dashes();
 
     // ── PAYMENT LEDGER (running balance for this month) ──────────────
     center("PAYMENT LEDGER", true);
     dashes();
-    row2("Total Due", `Rs ${due.toFixed(2)}`, true);
+    row2("Total Due", `Rs ${dueRounded.toFixed(2)}`, true);
     if (paidBefore > 0) {
       row2("Previously Paid", `Rs ${paidBefore.toFixed(2)}`);
       note("Sum of earlier approved installments");
