@@ -59,8 +59,11 @@ export function OwnerReadingDialog({
   const other = Number(flat.other_charges ?? 0);
   const totalDue = rent + electricity + maintenance + other - openingBalance;
 
-  const save = async () => {
-    if (!v || v < prevReading) return toast.error(`Reading must be ≥ ${prevReading}`);
+  const save = async (opts?: { silent?: boolean }) => {
+    if (!v || v < prevReading) {
+      if (!opts?.silent) toast.error(`Reading must be ≥ ${prevReading}`);
+      return;
+    }
     setSaving(true);
     const payload = {
       flat_id: flat.id,
@@ -80,11 +83,32 @@ export function OwnerReadingDialog({
       ? await supabase.from("meter_readings").update(payload).eq("id", current.id)
       : await supabase.from("meter_readings").insert(payload);
     setSaving(false);
-    if (error) return toast.error(error.message);
-    toast.success("Reading saved");
-    setOpen(false);
+    if (error) {
+      if (!opts?.silent) toast.error(error.message);
+      return;
+    }
+    if (!opts?.silent) {
+      toast.success("Reading saved");
+      setOpen(false);
+    }
     onSaved();
   };
+
+  // Auto-save when the current reading changes (debounced).
+  const lastSavedRef = useRef<number | null>(current?.curr_reading ?? null);
+  useEffect(() => {
+    if (!open) return;
+    if (!val) return;
+    if (v < prevReading) return;
+    if (lastSavedRef.current === v) return;
+    const t = setTimeout(async () => {
+      lastSavedRef.current = v;
+      await save({ silent: true });
+    }, 600);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [v, open]);
+
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
