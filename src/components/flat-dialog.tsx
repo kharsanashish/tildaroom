@@ -142,17 +142,19 @@ export function FlatDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        {flat ? (
-          <Button variant="ghost" size="icon" className="h-8 w-8">
-            <Pencil className="h-4 w-4" />
-          </Button>
-        ) : (
-          <Button size="sm">
-            <Plus className="h-4 w-4 mr-1" /> Add Flat
-          </Button>
-        )}
-      </DialogTrigger>
+      {!hideTrigger && (
+        <DialogTrigger asChild>
+          {flat ? (
+            <Button variant="ghost" size="icon" className="h-8 w-8">
+              <Pencil className="h-4 w-4" />
+            </Button>
+          ) : (
+            <Button size="sm">
+              <Plus className="h-4 w-4 mr-1" /> Add Flat
+            </Button>
+          )}
+        </DialogTrigger>
+      )}
       <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
