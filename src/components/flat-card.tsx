@@ -213,7 +213,7 @@ export function FlatCard({ flat, reading, allReadings, monthRate, month, year, o
             {isVacant ? "Vacant: ON" : "Vacant: OFF"}
           </Button>
 
-          {canEditReading && (
+          {canEditReading && !reading && (
             <OwnerReadingDialog
               flat={flat}
               readings={flatReadings}
@@ -223,10 +223,22 @@ export function FlatCard({ flat, reading, allReadings, monthRate, month, year, o
               trigger={
                 <Button size="sm" variant="outline" onClick={(e) => e.stopPropagation()}>
                   <Zap className="h-4 w-4 mr-1" />
-                  {reading ? "Update" : "Enter Reading"}
+                  Enter Reading
                 </Button>
               }
             />
+          )}
+
+          {!isVacant && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={(e) => { e.stopPropagation(); openTenantView(); }}
+              title="Open tenant view"
+            >
+              <Eye className="h-4 w-4 mr-1" />
+              Tenant view
+            </Button>
           )}
         </div>
       </div>
