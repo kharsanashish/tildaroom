@@ -47,6 +47,7 @@ interface FlatCardProps {
 export function FlatCard({ flat, reading, allReadings, monthRate, month, year, onChange }: FlatCardProps) {
   const navigate = useNavigate();
   const [togglingVacant, setTogglingVacant] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const isVacant = flat.is_vacant ?? false;
 
   const openTenantView = () => {
