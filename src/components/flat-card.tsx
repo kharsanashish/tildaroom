@@ -145,7 +145,7 @@ export function FlatCard({ flat, reading, allReadings, monthRate, month, year, o
               </a>
             </Button>
           )}
-          <FlatDialog flat={flat} onSaved={onChange} />
+          <FlatDialog flat={flat} onSaved={onChange} open={editOpen} onOpenChange={setEditOpen} hideTrigger />
         </div>
       </div>
 
