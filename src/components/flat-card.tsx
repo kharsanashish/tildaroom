@@ -3,7 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { MessageCircle, Zap, Home } from "lucide-react";
+import { MessageCircle, Zap, Home, Eye } from "lucide-react";
 import { formatINR, monthLabel, statusColor, statusLabel, type PaymentStatus } from "@/lib/billing";
 import { OwnerReadingDialog } from "@/components/owner-reading-dialog";
 import { FlatDialog } from "@/components/flat-dialog";
@@ -47,6 +47,7 @@ interface FlatCardProps {
 export function FlatCard({ flat, reading, allReadings, monthRate, month, year, onChange }: FlatCardProps) {
   const navigate = useNavigate();
   const [togglingVacant, setTogglingVacant] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const isVacant = flat.is_vacant ?? false;
 
   const openTenantView = () => {
@@ -110,10 +111,10 @@ export function FlatCard({ flat, reading, allReadings, monthRate, month, year, o
 
   return (
     <Card
-      onClick={openTenantView}
+      onClick={() => setEditOpen(true)}
       role="button"
       tabIndex={0}
-      onKeyDown={(e) => { if (e.key === "Enter") openTenantView(); }}
+      onKeyDown={(e) => { if (e.key === "Enter") setEditOpen(true); }}
       className={`p-4 hover:shadow-md transition-shadow cursor-pointer ${isVacant ? "opacity-60 border-dashed" : ""}`}
       style={{ boxShadow: isVacant ? "none" : "var(--shadow-card)" }}
     >
@@ -144,7 +145,7 @@ export function FlatCard({ flat, reading, allReadings, monthRate, month, year, o
               </a>
             </Button>
           )}
-          <FlatDialog flat={flat} onSaved={onChange} />
+          <FlatDialog flat={flat} onSaved={onChange} open={editOpen} onOpenChange={setEditOpen} hideTrigger />
         </div>
       </div>
 
@@ -212,7 +213,7 @@ export function FlatCard({ flat, reading, allReadings, monthRate, month, year, o
             {isVacant ? "Vacant: ON" : "Vacant: OFF"}
           </Button>
 
-          {canEditReading && (
+          {canEditReading && !reading && (
             <OwnerReadingDialog
               flat={flat}
               readings={flatReadings}
@@ -222,10 +223,22 @@ export function FlatCard({ flat, reading, allReadings, monthRate, month, year, o
               trigger={
                 <Button size="sm" variant="outline" onClick={(e) => e.stopPropagation()}>
                   <Zap className="h-4 w-4 mr-1" />
-                  {reading ? "Update" : "Enter Reading"}
+                  Enter Reading
                 </Button>
               }
             />
+          )}
+
+          {!isVacant && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={(e) => { e.stopPropagation(); openTenantView(); }}
+              title="Open tenant view"
+            >
+              <Eye className="h-4 w-4 mr-1" />
+              Tenant view
+            </Button>
           )}
         </div>
       </div>

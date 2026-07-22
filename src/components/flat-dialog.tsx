@@ -31,11 +31,19 @@ interface Flat {
 export function FlatDialog({
   flat,
   onSaved,
+  open: controlledOpen,
+  onOpenChange: controlledOnOpenChange,
+  hideTrigger = false,
 }: {
   flat?: Flat;
   onSaved: () => void;
+  open?: boolean;
+  onOpenChange?: (v: boolean) => void;
+  hideTrigger?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const open = controlledOpen ?? uncontrolledOpen;
+  const setOpen = controlledOnOpenChange ?? setUncontrolledOpen;
   const [flatNumber, setFlatNumber] = useState(flat?.flat_number ?? "");
   const [tenantName, setTenantName] = useState(flat?.tenant_name ?? "");
   const [tenantUsername, setTenantUsername] = useState(flat?.tenant_mobile ?? "");
@@ -134,17 +142,19 @@ export function FlatDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        {flat ? (
-          <Button variant="ghost" size="icon" className="h-8 w-8">
-            <Pencil className="h-4 w-4" />
-          </Button>
-        ) : (
-          <Button size="sm">
-            <Plus className="h-4 w-4 mr-1" /> Add Flat
-          </Button>
-        )}
-      </DialogTrigger>
+      {!hideTrigger && (
+        <DialogTrigger asChild>
+          {flat ? (
+            <Button variant="ghost" size="icon" className="h-8 w-8">
+              <Pencil className="h-4 w-4" />
+            </Button>
+          ) : (
+            <Button size="sm">
+              <Plus className="h-4 w-4 mr-1" /> Add Flat
+            </Button>
+          )}
+        </DialogTrigger>
+      )}
       <DialogContent className="max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
