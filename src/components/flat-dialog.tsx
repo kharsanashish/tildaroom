@@ -31,11 +31,19 @@ interface Flat {
 export function FlatDialog({
   flat,
   onSaved,
+  open: controlledOpen,
+  onOpenChange: controlledOnOpenChange,
+  hideTrigger = false,
 }: {
   flat?: Flat;
   onSaved: () => void;
+  open?: boolean;
+  onOpenChange?: (v: boolean) => void;
+  hideTrigger?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const open = controlledOpen ?? uncontrolledOpen;
+  const setOpen = controlledOnOpenChange ?? setUncontrolledOpen;
   const [flatNumber, setFlatNumber] = useState(flat?.flat_number ?? "");
   const [tenantName, setTenantName] = useState(flat?.tenant_name ?? "");
   const [tenantUsername, setTenantUsername] = useState(flat?.tenant_mobile ?? "");
