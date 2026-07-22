@@ -111,10 +111,10 @@ export function FlatCard({ flat, reading, allReadings, monthRate, month, year, o
 
   return (
     <Card
-      onClick={openTenantView}
+      onClick={() => setEditOpen(true)}
       role="button"
       tabIndex={0}
-      onKeyDown={(e) => { if (e.key === "Enter") openTenantView(); }}
+      onKeyDown={(e) => { if (e.key === "Enter") setEditOpen(true); }}
       className={`p-4 hover:shadow-md transition-shadow cursor-pointer ${isVacant ? "opacity-60 border-dashed" : ""}`}
       style={{ boxShadow: isVacant ? "none" : "var(--shadow-card)" }}
     >
