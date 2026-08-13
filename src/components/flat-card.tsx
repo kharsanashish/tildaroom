@@ -75,7 +75,8 @@ export function FlatCard({ flat, reading, allReadings, monthRate, month, year, o
     ? Number(reading.total_due) - Number(reading.amount_paid)
     : fallbackDue - openingBalance;
   const flatReadings = allReadings.filter((r) => r.flat_id === flat.id);
-  const canEditReading = !isVacant && status !== "paid" && status !== "pending_approval";
+  const hasReading = reading?.curr_reading != null;
+
   const waNumber = (flat.tenant_whatsapp || "").replace(/\D/g, "");
 
   // Amount to remind about: deduct any partial payment already made this
