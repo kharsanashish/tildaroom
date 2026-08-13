@@ -3,10 +3,12 @@ import { useNavigate } from "@tanstack/react-router";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { MessageCircle, Zap, Home, Eye } from "lucide-react";
+import { MessageCircle, Zap, Home, Eye, IndianRupee } from "lucide-react";
 import { formatINR, monthLabel, statusColor, statusLabel, type PaymentStatus } from "@/lib/billing";
 import { OwnerReadingDialog } from "@/components/owner-reading-dialog";
+import { OwnerPaymentDialog } from "@/components/owner-payment-dialog";
 import { FlatDialog } from "@/components/flat-dialog";
+
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
