@@ -34,9 +34,9 @@ import { statusBadgeClass, statusBadgeLabel } from "@/lib/payments";
 
 
 export const Route = createFileRoute("/tenant")({
-  validateSearch: (s: Record<string, unknown>) => ({
-    flat: typeof s.flat === "string" ? s.flat : undefined,
-  }),
+  validateSearch: (s: Record<string, unknown>): { flat?: string } =>
+    typeof s.flat === "string" ? { flat: s.flat } : {},
+
   component: TenantRouteEntry,
 });
 
