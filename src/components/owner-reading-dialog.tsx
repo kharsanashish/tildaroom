@@ -65,7 +65,7 @@ export function OwnerReadingDialog({
       return;
     }
     setSaving(true);
-    const payload = {
+    const base = {
       flat_id: flat.id,
       month, year,
       prev_reading: prevReading,
@@ -76,12 +76,16 @@ export function OwnerReadingDialog({
       rent, maintenance, other_charges: other,
       opening_balance: openingBalance,
       total_due: totalDue,
-      amount_paid: current?.amount_paid ?? 0,
-      payment_status: current?.payment_status ?? ("pending" as PaymentStatus),
     };
-    const { error } = current
-      ? await supabase.from("meter_readings").update(payload).eq("id", current.id)
-      : await supabase.from("meter_readings").insert(payload);
+    // IMPORTANT: never reset amount_paid / payment_status here — approved
+    // payments (including ones made before the reading existed) must stay
+    // deducted. The recompute RPC below re-derives them from the payments.
+    const { data, error } = current
+      ? await supabase.from("meter_readings").update(base).eq("id", current.id).select("id").single()
+      : await supabase.from("meter_readings").insert({ ...base, amount_paid: 0, payment_status: "pending" }).select("id").single();
+    if (!error && data?.id) {
+      await supabase.rpc("recompute_reading_payment", { p_reading_id: data.id });
+    }
     setSaving(false);
     if (error) {
       if (!opts?.silent) toast.error(error.message);
@@ -93,6 +97,7 @@ export function OwnerReadingDialog({
     }
     onSaved();
   };
+
 
   // Auto-save when the current reading changes (debounced).
   const lastSavedRef = useRef<number | null>(current?.curr_reading ?? null);
