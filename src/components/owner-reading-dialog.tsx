@@ -126,13 +126,16 @@ export function OwnerReadingDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{trigger}</DialogTrigger>
-      <DialogContent>
+      <DialogContent className="max-w-[95vw] sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Zap className="h-5 w-5 text-warning" />
-            Flat {flat.flat_number} • {monthLabel(month, year)}
+          <DialogTitle className="flex items-center gap-2 text-base">
+            <Zap className="h-5 w-5 shrink-0 text-warning" />
+            <span className="truncate">
+              {current?.curr_reading != null ? "Edit" : "Enter"} Reading • Flat {flat.flat_number} • {monthLabel(month, year)}
+            </span>
           </DialogTitle>
         </DialogHeader>
+
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
