@@ -59,6 +59,11 @@ export function OwnerReadingDialog({
   const other = Number(flat.other_charges ?? 0);
   const totalDue = rent + electricity + maintenance + other - openingBalance;
 
+  // Tracks the row id for this month once known, so repeated auto-saves
+  // update the same reading instead of creating duplicates.
+  const rowIdRef = useRef<string | null>(current?.id ?? null);
+  if (current?.id && rowIdRef.current !== current.id) rowIdRef.current = current.id;
+
   const save = async (opts?: { silent?: boolean }) => {
     if (!v || v < prevReading) {
       if (!opts?.silent) toast.error(`Reading must be ≥ ${prevReading}`);
@@ -80,12 +85,15 @@ export function OwnerReadingDialog({
     // IMPORTANT: never reset amount_paid / payment_status here — approved
     // payments (including ones made before the reading existed) must stay
     // deducted. The recompute RPC below re-derives them from the payments.
-    const { data, error } = current
-      ? await supabase.from("meter_readings").update(base).eq("id", current.id).select("id").single()
+    const existingId = rowIdRef.current;
+    const { data, error } = existingId
+      ? await supabase.from("meter_readings").update(base).eq("id", existingId).select("id").single()
       : await supabase.from("meter_readings").insert({ ...base, amount_paid: 0, payment_status: "pending" }).select("id").single();
     if (!error && data?.id) {
+      rowIdRef.current = data.id;
       await supabase.rpc("recompute_reading_payment", { p_reading_id: data.id });
     }
+
     setSaving(false);
     if (error) {
       if (!opts?.silent) toast.error(error.message);
