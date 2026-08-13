@@ -115,13 +115,13 @@ export function FlatCard({ flat, reading, allReadings, monthRate, month, year, o
       role="button"
       tabIndex={0}
       onKeyDown={(e) => { if (e.key === "Enter") setEditOpen(true); }}
-      className={`p-4 hover:shadow-md transition-shadow cursor-pointer ${isVacant ? "opacity-60 border-dashed" : ""}`}
+      className={`p-3 sm:p-4 hover:shadow-md transition-shadow cursor-pointer ${isVacant ? "opacity-60 border-dashed" : ""}`}
       style={{ boxShadow: isVacant ? "none" : "var(--shadow-card)" }}
     >
-      <div className="flex items-start justify-between">
-        <div>
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2">
+        <div className="min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <h3 className="font-semibold">Flat {flat.flat_number}</h3>
+            <h3 className="font-semibold truncate">Flat {flat.flat_number}</h3>
             {isVacant ? (
               <Badge variant="outline" className="border-muted-foreground text-muted-foreground">
                 <Home className="h-3 w-3 mr-1" /> VACANT
@@ -130,12 +130,24 @@ export function FlatCard({ flat, reading, allReadings, monthRate, month, year, o
               <Badge className={statusColor(status)}>{statusLabel(status)}</Badge>
             )}
           </div>
-          <div className="text-sm text-muted-foreground mt-0.5">
+          <div className="text-sm text-muted-foreground mt-0.5 truncate">
             {flat.tenant_name || "(no tenant)"}
             {flat.tenant_mobile && ` • ${flat.tenant_mobile}`}
           </div>
         </div>
-        <div className="flex items-center gap-1" onClick={stop}>
+        <div className="flex shrink-0 items-center gap-1" onClick={stop}>
+          {!isVacant && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 px-2 text-xs"
+              onClick={(e) => { e.stopPropagation(); openTenantView(); }}
+              title="Open tenant view"
+            >
+              <Eye className="h-4 w-4 sm:mr-1" />
+              <span className="hidden sm:inline">View Tenant</span>
+            </Button>
+          )}
           {waNumber && !isVacant && (
             <Button variant="ghost" size="icon" className="h-8 w-8 text-success" asChild
               title={reading ? "Send bill reminder" : "Remind to submit reading"}>
@@ -156,64 +168,68 @@ export function FlatCard({ flat, reading, allReadings, monthRate, month, year, o
         </div>
       ) : (
         <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
-          <div>
+          <div className="min-w-0">
             <div className="text-xs text-muted-foreground">Rent</div>
             <div className="font-medium">{formatINR(Number(flat.rent))}</div>
           </div>
-          <div>
+          <div className="min-w-0">
             <div className="text-xs text-muted-foreground">Maintenance</div>
             <div className="font-medium">{formatINR(Number(flat.maintenance ?? 0))}</div>
           </div>
-          <div>
+          <div className="min-w-0">
             <div className="text-xs text-muted-foreground">Other</div>
             <div className="font-medium">{formatINR(Number(flat.other_charges))}</div>
           </div>
           {reading ? (
-            <div>
+            <div className="min-w-0">
               <div className="text-xs text-muted-foreground">Bill ({Number(reading.units).toFixed(0)}u)</div>
               <div className="font-medium">{formatINR(Number(reading.electricity_bill))}</div>
             </div>
           ) : (
-            <div>
+            <div className="min-w-0">
               <div className="text-xs text-muted-foreground italic">No reading yet</div>
             </div>
           )}
         </div>
       )}
 
-      <div className="mt-3 pt-3 border-t flex items-center justify-between gap-2">
-        <div>
-          {isVacant ? (
-            <div className="text-lg font-bold text-muted-foreground">{formatINR(0)}</div>
-          ) : (
-            <>
-              <div className="text-xs text-muted-foreground">{status === "paid" ? "Paid" : "Due"}</div>
-              <div className="text-lg font-bold">
-                {formatINR(reading ? Number(reading.total_due) : due)}
-              </div>
-              {/* Only show balance due when NOT fully paid */}
-              {status !== "paid" && due > 0 && reading && (
-                <div className="text-xs text-destructive">Balance due {formatINR(due)}</div>
-              )}
-            </>
-          )}
+      <div className="mt-3 pt-3 border-t space-y-3">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+          <div className="min-w-0">
+            {isVacant ? (
+              <div className="text-lg font-bold text-muted-foreground">{formatINR(0)}</div>
+            ) : (
+              <>
+                <div className="text-xs text-muted-foreground">{status === "paid" ? "Paid" : "Due"}</div>
+                <div className="text-lg font-bold">
+                  {formatINR(reading ? Number(reading.total_due) : due)}
+                </div>
+                {/* Only show balance due when NOT fully paid */}
+                {status !== "paid" && due > 0 && reading && (
+                  <div className="text-xs text-destructive">Balance due {formatINR(due)}</div>
+                )}
+              </>
+            )}
+          </div>
+
+          <div className="shrink-0" onClick={stop}>
+            {/* Vacant toggle button */}
+            <Button
+              size="sm"
+              variant={isVacant ? "default" : "outline"}
+              onClick={(e) => { e.stopPropagation(); toggleVacant(); }}
+              disabled={togglingVacant}
+              className={`text-xs ${isVacant ? "bg-muted-foreground" : ""}`}
+              title={isVacant ? "Mark as occupied" : "Mark as vacant"}
+            >
+              <Home className="h-3.5 w-3.5 mr-1" />
+              {isVacant ? "Vacant: ON" : "Vacant: OFF"}
+            </Button>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2" onClick={stop}>
-          {/* Vacant toggle button */}
-          <Button
-            size="sm"
-            variant={isVacant ? "default" : "outline"}
-            onClick={(e) => { e.stopPropagation(); toggleVacant(); }}
-            disabled={togglingVacant}
-            className={`text-xs ${isVacant ? "bg-muted-foreground" : ""}`}
-            title={isVacant ? "Mark as occupied" : "Mark as vacant"}
-          >
-            <Home className="h-3.5 w-3.5 mr-1" />
-            {isVacant ? "Vacant: ON" : "Vacant: OFF"}
-          </Button>
-
-          {canEditReading && !reading && (
+        {!isVacant && (
+          <div className="grid gap-2 sm:grid-cols-2" onClick={stop}>
             <OwnerReadingDialog
               flat={flat}
               readings={flatReadings}
@@ -221,27 +237,30 @@ export function FlatCard({ flat, reading, allReadings, monthRate, month, year, o
               current={reading}
               onSaved={onChange}
               trigger={
-                <Button size="sm" variant="outline" onClick={(e) => e.stopPropagation()}>
-                  <Zap className="h-4 w-4 mr-1" />
-                  Enter Reading
+                <Button size="sm" variant="outline" className="w-full" onClick={(e) => e.stopPropagation()}>
+                  <Zap className="h-4 w-4 mr-1 shrink-0" />
+                  <span className="truncate">
+                    {hasReading ? "Edit Current Month Reading" : "Enter Current Month Reading"}
+                  </span>
                 </Button>
               }
             />
-          )}
-
-          {!isVacant && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={(e) => { e.stopPropagation(); openTenantView(); }}
-              title="Open tenant view"
-            >
-              <Eye className="h-4 w-4 mr-1" />
-              Tenant view
-            </Button>
-          )}
-        </div>
+            <OwnerPaymentDialog
+              flat={flat}
+              reading={reading}
+              allReadings={allReadings}
+              onSaved={onChange}
+              trigger={
+                <Button size="sm" className="w-full" onClick={(e) => e.stopPropagation()}>
+                  <IndianRupee className="h-4 w-4 mr-1 shrink-0" />
+                  Add Payment
+                </Button>
+              }
+            />
+          </div>
+        )}
       </div>
     </Card>
   );
 }
+
