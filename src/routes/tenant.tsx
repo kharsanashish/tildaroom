@@ -34,9 +34,9 @@ import { statusBadgeClass, statusBadgeLabel } from "@/lib/payments";
 
 
 export const Route = createFileRoute("/tenant")({
-  validateSearch: (s: Record<string, unknown>) => ({
-    flat: typeof s.flat === "string" ? s.flat : undefined,
-  }),
+  validateSearch: (s: Record<string, unknown>): { flat?: string } =>
+    typeof s.flat === "string" ? { flat: s.flat } : {},
+
   component: TenantRouteEntry,
 });
 
@@ -187,7 +187,7 @@ function TenantDashboard({ ownerViewFlatId }: { ownerViewFlatId?: string } = {})
     const v = Number(currInput);
     if (!v || v < prevReading) return toast.error(`Reading must be ≥ ${prevReading}`);
     setSaving(true);
-    const payload = {
+    const base = {
       flat_id: flat.id, month, year,
       prev_reading: prevReading,
       curr_reading: v,
@@ -197,15 +197,19 @@ function TenantDashboard({ ownerViewFlatId }: { ownerViewFlatId?: string } = {})
       rent, maintenance, other_charges: other,
       opening_balance: openingBalance,
       total_due: rent + (v - prevReading) * rate + maintenance + other - openingBalance,
-      amount_paid: 0,
-      payment_status: "pending" as const,
     };
-    const { error } = current
-      ? await supabase.from("meter_readings").update(payload).eq("id", current.id)
-      : await supabase.from("meter_readings").insert(payload);
+    // Never reset amount_paid / payment_status: approved payments made before
+    // the reading existed must stay deducted. Recompute re-derives them.
+    const { data, error } = current
+      ? await supabase.from("meter_readings").update(base).eq("id", current.id).select("id").single()
+      : await supabase.from("meter_readings").insert({ ...base, amount_paid: 0, payment_status: "pending" }).select("id").single();
+    if (!error && data?.id) {
+      await supabase.rpc("recompute_reading_payment", { p_reading_id: data.id });
+    }
     setSaving(false);
     if (error) toast.error(error.message);
     else { toast.success("Reading saved"); setCurrInput(""); refresh(); }
+
   };
 
   const ensureRow = async (): Promise<Reading | null> => {

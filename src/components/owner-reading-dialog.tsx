@@ -59,13 +59,18 @@ export function OwnerReadingDialog({
   const other = Number(flat.other_charges ?? 0);
   const totalDue = rent + electricity + maintenance + other - openingBalance;
 
+  // Tracks the row id for this month once known, so repeated auto-saves
+  // update the same reading instead of creating duplicates.
+  const rowIdRef = useRef<string | null>(current?.id ?? null);
+  if (current?.id && rowIdRef.current !== current.id) rowIdRef.current = current.id;
+
   const save = async (opts?: { silent?: boolean }) => {
     if (!v || v < prevReading) {
       if (!opts?.silent) toast.error(`Reading must be ≥ ${prevReading}`);
       return;
     }
     setSaving(true);
-    const payload = {
+    const base = {
       flat_id: flat.id,
       month, year,
       prev_reading: prevReading,
@@ -76,12 +81,19 @@ export function OwnerReadingDialog({
       rent, maintenance, other_charges: other,
       opening_balance: openingBalance,
       total_due: totalDue,
-      amount_paid: current?.amount_paid ?? 0,
-      payment_status: current?.payment_status ?? ("pending" as PaymentStatus),
     };
-    const { error } = current
-      ? await supabase.from("meter_readings").update(payload).eq("id", current.id)
-      : await supabase.from("meter_readings").insert(payload);
+    // IMPORTANT: never reset amount_paid / payment_status here — approved
+    // payments (including ones made before the reading existed) must stay
+    // deducted. The recompute RPC below re-derives them from the payments.
+    const existingId = rowIdRef.current;
+    const { data, error } = existingId
+      ? await supabase.from("meter_readings").update(base).eq("id", existingId).select("id").single()
+      : await supabase.from("meter_readings").insert({ ...base, amount_paid: 0, payment_status: "pending" }).select("id").single();
+    if (!error && data?.id) {
+      rowIdRef.current = data.id;
+      await supabase.rpc("recompute_reading_payment", { p_reading_id: data.id });
+    }
+
     setSaving(false);
     if (error) {
       if (!opts?.silent) toast.error(error.message);
@@ -93,6 +105,7 @@ export function OwnerReadingDialog({
     }
     onSaved();
   };
+
 
   // Auto-save when the current reading changes (debounced).
   const lastSavedRef = useRef<number | null>(current?.curr_reading ?? null);
@@ -113,13 +126,16 @@ export function OwnerReadingDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{trigger}</DialogTrigger>
-      <DialogContent>
+      <DialogContent className="max-w-[95vw] sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Zap className="h-5 w-5 text-warning" />
-            Flat {flat.flat_number} • {monthLabel(month, year)}
+          <DialogTitle className="flex items-center gap-2 text-base">
+            <Zap className="h-5 w-5 shrink-0 text-warning" />
+            <span className="truncate">
+              {current?.curr_reading != null ? "Edit" : "Enter"} Reading • Flat {flat.flat_number} • {monthLabel(month, year)}
+            </span>
           </DialogTitle>
         </DialogHeader>
+
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
