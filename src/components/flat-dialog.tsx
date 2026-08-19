@@ -194,7 +194,7 @@ export function FlatDialog({
               Tenant Password{" "}
               {flat?.tenant_id && (
                 <span className="text-xs text-muted-foreground">
-                  (leave empty to keep)
+                  (enter new to reset)
                 </span>
               )}
             </Label>
@@ -203,13 +203,14 @@ export function FlatDialog({
                 value={tenantPassword}
                 onChange={(e) => setTenantPassword(e.target.value)}
                 type={showPassword ? "text" : "password"}
-                placeholder={flat?.tenant_id ? "•••••" : "Set login password"}
+                placeholder={flat?.tenant_id ? "Existing password is hidden" : "Set login password"}
                 className="pr-10"
               />
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
+                title={showPassword ? "Hide password" : "Show typed password"}
                 className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 text-muted-foreground"
                 onClick={() => setShowPassword((v) => !v)}
                 tabIndex={-1}
@@ -221,6 +222,11 @@ export function FlatDialog({
                 )}
               </Button>
             </div>
+            {flat?.tenant_id && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Existing passwords are stored securely and cannot be displayed. Type a new password to reset it.
+              </p>
+            )}
           </div>
           <div>
             <Label>WhatsApp Mobile (10 digits, no +91)</Label>
