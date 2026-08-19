@@ -325,6 +325,24 @@ export type Database = {
         }
         Relationships: []
       }
+      tenant_credentials: {
+        Row: {
+          secret: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          secret: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          secret?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       tenant_documents: {
         Row: {
           document_type: string
@@ -398,6 +416,10 @@ export type Database = {
       }
     }
     Functions: {
+      get_tenant_password: {
+        Args: { _key: string; _tenant_id: string }
+        Returns: string
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -407,6 +429,10 @@ export type Database = {
       }
       recompute_reading_payment: {
         Args: { p_reading_id: string }
+        Returns: undefined
+      }
+      set_tenant_password: {
+        Args: { _key: string; _password: string; _tenant_id: string }
         Returns: undefined
       }
     }

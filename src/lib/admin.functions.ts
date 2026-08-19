@@ -123,7 +123,48 @@ export const createTenant = createServerFn({ method: "POST" })
       .eq("id", data.flatId);
     if (flatErr) return { ok: false, error: flatErr.message };
 
+    // Keep a server-side encrypted copy so the owner can view it again later.
+    const key = process.env["TENANT_PASSWORD_KEY"];
+    if (key) {
+      await sb.rpc("set_tenant_password", {
+        _tenant_id: userId,
+        _password: data.password,
+        _key: key,
+      });
+    }
+
     return { ok: true, userId };
+  });
+
+/** Owner-only: decrypt and reveal a tenant's current password. */
+export const revealTenantPassword = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ tenantId: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: roles } = await context.supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", context.userId)
+      .eq("role", "owner")
+      .maybeSingle();
+    if (!roles) throw new Error("Only the owner can view tenant passwords");
+
+    const key = process.env["TENANT_PASSWORD_KEY"];
+    if (!key) return { ok: false as const, error: "Encryption key not configured" };
+
+    const sb = await admin();
+    const { data: pw, error } = await sb.rpc("get_tenant_password", {
+      _tenant_id: data.tenantId,
+      _key: key,
+    });
+    if (error) return { ok: false as const, error: error.message };
+    if (!pw) {
+      return {
+        ok: false as const,
+        error: "No stored password yet — set a new one to enable viewing.",
+      };
+    }
+    return { ok: true as const, password: pw as string };
   });
 
 export const deleteTenant = createServerFn({ method: "POST" })
