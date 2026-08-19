@@ -9,7 +9,7 @@ import { Pencil, Plus, Trash2, Loader2, Eye, EyeOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
-import { createTenant, deleteTenant } from "@/lib/admin.functions";
+import { createTenant, deleteTenant, revealTenantPassword } from "@/lib/admin.functions";
 import { DocumentVault } from "@/components/document-vault";
 import { FolderLock } from "lucide-react";
 
@@ -60,10 +60,37 @@ export function FlatDialog({
     flat?.due_date != null ? String(flat.due_date) : ""
   );
   const [showPassword, setShowPassword] = useState(false);
+  const [revealing, setRevealing] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const createTenantFn = useServerFn(createTenant);
   const deleteTenantFn = useServerFn(deleteTenant);
+  const revealPasswordFn = useServerFn(revealTenantPassword);
+
+  const toggleReveal = async () => {
+    if (showPassword) {
+      setShowPassword(false);
+      return;
+    }
+    // Nothing typed yet and a tenant exists -> fetch the stored password.
+    if (!tenantPassword && flat?.tenant_id) {
+      setRevealing(true);
+      try {
+        const r = await revealPasswordFn({ data: { tenantId: flat.tenant_id } });
+        if (!r.ok) {
+          toast.error(r.error || "Could not reveal password");
+          return;
+        }
+        setTenantPassword(r.password);
+      } catch (e) {
+        toast.error((e as Error).message);
+        return;
+      } finally {
+        setRevealing(false);
+      }
+    }
+    setShowPassword(true);
+  };
 
   const save = async () => {
     if (!flatNumber.trim()) return toast.error("Flat number required");
