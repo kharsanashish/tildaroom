@@ -221,7 +221,7 @@ export function FlatDialog({
               Tenant Password{" "}
               {flat?.tenant_id && (
                 <span className="text-xs text-muted-foreground">
-                  (enter new to reset)
+                  (tap the eye to view, or type a new one)
                 </span>
               )}
             </Label>
@@ -230,19 +230,22 @@ export function FlatDialog({
                 value={tenantPassword}
                 onChange={(e) => setTenantPassword(e.target.value)}
                 type={showPassword ? "text" : "password"}
-                placeholder={flat?.tenant_id ? "Existing password is hidden" : "Set login password"}
+                placeholder={flat?.tenant_id ? "••••••••" : "Set login password"}
                 className="pr-10"
               />
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
-                title={showPassword ? "Hide password" : "Show typed password"}
+                title={showPassword ? "Hide password" : "Show password"}
                 className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 text-muted-foreground"
-                onClick={() => setShowPassword((v) => !v)}
+                onClick={toggleReveal}
+                disabled={revealing}
                 tabIndex={-1}
               >
-                {showPassword ? (
+                {revealing ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : showPassword ? (
                   <EyeOff className="h-4 w-4" />
                 ) : (
                   <Eye className="h-4 w-4" />
@@ -251,7 +254,8 @@ export function FlatDialog({
             </div>
             {flat?.tenant_id && (
               <p className="text-xs text-muted-foreground mt-1">
-                Existing passwords are stored securely and cannot be displayed. Type a new password to reset it.
+                Passwords set from here are stored encrypted, so you can view them again. Older
+                passwords set before this change can't be shown — reset one to enable viewing.
               </p>
             )}
           </div>
