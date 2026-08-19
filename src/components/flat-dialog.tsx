@@ -5,7 +5,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Pencil, Plus, Trash2, Loader2 } from "lucide-react";
+import { Pencil, Plus, Trash2, Loader2, Eye, EyeOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
@@ -59,6 +59,7 @@ export function FlatDialog({
   const [dueDate, setDueDate] = useState(
     flat?.due_date != null ? String(flat.due_date) : ""
   );
+  const [showPassword, setShowPassword] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const createTenantFn = useServerFn(createTenant);
@@ -197,12 +198,29 @@ export function FlatDialog({
                 </span>
               )}
             </Label>
-            <Input
-              value={tenantPassword}
-              onChange={(e) => setTenantPassword(e.target.value)}
-              type="text"
-              placeholder={flat?.tenant_id ? "•••••" : "Set login password"}
-            />
+            <div className="relative">
+              <Input
+                value={tenantPassword}
+                onChange={(e) => setTenantPassword(e.target.value)}
+                type={showPassword ? "text" : "password"}
+                placeholder={flat?.tenant_id ? "•••••" : "Set login password"}
+                className="pr-10"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 text-muted-foreground"
+                onClick={() => setShowPassword((v) => !v)}
+                tabIndex={-1}
+              >
+                {showPassword ? (
+                  <EyeOff className="h-4 w-4" />
+                ) : (
+                  <Eye className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
           </div>
           <div>
             <Label>WhatsApp Mobile (10 digits, no +91)</Label>
