@@ -431,6 +431,7 @@ export type Database = {
         Args: { p_reading_id: string }
         Returns: undefined
       }
+      round_bill_amount: { Args: { p_amount: number }; Returns: number }
       set_tenant_password: {
         Args: { _key: string; _password: string; _tenant_id: string }
         Returns: undefined
