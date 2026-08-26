@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { History, IndianRupee, Pencil, FileDown, FileText, ChevronDown, ChevronUp, Trash2 } from "lucide-react";
+import { History, IndianRupee, FileDown, FileText, ChevronDown, ChevronUp, Trash2 } from "lucide-react";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
@@ -11,7 +11,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { formatINR, monthLabel, statusColor, statusLabel, type PaymentStatus } from "@/lib/billing";
 import { exportPaymentReceiptPdf, exportMonthlySummaryPdf } from "@/lib/pdf";
-import { EditReadingDialog } from "@/components/edit-reading-dialog";
 import type { PaymentInstallment } from "@/lib/payments";
 import { statusBadgeClass, statusBadgeLabel } from "@/lib/payments";
 
@@ -61,7 +60,6 @@ export function HistoryView({
   onChange: () => void;
 }) {
   const [flatId, setFlatId] = useState<string | "all">("all");
-  const [editing, setEditing] = useState<Reading | null>(null);
   const [payments, setPayments] = useState<PaymentInstallment[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
@@ -204,9 +202,6 @@ export function HistoryView({
                       {Number(r.amount_paid).toFixed(0)} / {Number(r.total_due).toFixed(0)}
                     </div>
                     <div className="flex gap-1 mt-2 justify-end">
-                      <Button size="sm" variant="outline" className="h-7" onClick={() => setEditing(r)}>
-                        <Pencil className="h-3 w-3 mr-1" /> Edit
-                      </Button>
                       {inst.length > 0 && (
                         <Button size="sm" variant="outline" className="h-7" onClick={() => toggle(r.id)}>
                           {isOpen ? <ChevronUp className="h-3 w-3 mr-1" /> : <ChevronDown className="h-3 w-3 mr-1" />}
@@ -275,15 +270,6 @@ export function HistoryView({
             );
           })}
         </div>
-      )}
-
-      {editing && (
-        <EditReadingDialog
-          reading={editing}
-          open={!!editing}
-          onOpenChange={(v) => !v && setEditing(null)}
-          onSaved={() => { onChange(); load(); }}
-        />
       )}
     </div>
   );
