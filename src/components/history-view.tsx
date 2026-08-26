@@ -271,15 +271,6 @@ export function HistoryView({
           })}
         </div>
       )}
-
-      {editing && (
-        <EditReadingDialog
-          reading={editing}
-          open={!!editing}
-          onOpenChange={(v) => !v && setEditing(null)}
-          onSaved={() => { onChange(); load(); }}
-        />
-      )}
     </div>
   );
 }
