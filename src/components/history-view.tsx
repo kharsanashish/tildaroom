@@ -60,7 +60,6 @@ export function HistoryView({
   onChange: () => void;
 }) {
   const [flatId, setFlatId] = useState<string | "all">("all");
-  const [editing, setEditing] = useState<Reading | null>(null);
   const [payments, setPayments] = useState<PaymentInstallment[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
