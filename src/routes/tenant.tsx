@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import {
-  buildUpiLink, currentMonthYear, formatINR, monthLabel,
+  balanceDue, buildUpiLink, currentMonthYear, formatINR, monthLabel, roundBillAmount,
   statusColor, statusLabel, type PaymentStatus,
 } from "@/lib/billing";
 import { getRateFor, hasRateFor } from "@/lib/rates";
@@ -161,7 +161,7 @@ function TenantDashboard({ ownerViewFlatId }: { ownerViewFlatId?: string } = {})
       .sort((a, b) => b.year - a.year || b.month - a.month)[0];
     if (!prev) return 0;
     const approved = prev.payment_status === "paid" || prev.payment_status === "partial";
-    return (approved ? Number(prev.amount_paid) : 0) - Number(prev.total_due);
+    return (approved ? Number(prev.amount_paid) : 0) - roundBillAmount(Number(prev.total_due));
   }, [readings, month, year]);
 
   const prevReading = useMemo(() => {
@@ -179,7 +179,9 @@ function TenantDashboard({ ownerViewFlatId }: { ownerViewFlatId?: string } = {})
   const rent = Number(flat?.rent ?? 0);
   const maintenance = Number(flat?.maintenance ?? 0);
   const other = Number(flat?.other_charges ?? 0);
-  const totalDue = rent + electricity + maintenance + other - openingBalance;
+  const rawTotalDue = rent + electricity + maintenance + other - openingBalance;
+  const totalDue = roundBillAmount(rawTotalDue);
+  const roundOff = totalDue - rawTotalDue;
 
   const saveReading = async () => {
     if (!flat) return;
@@ -196,7 +198,7 @@ function TenantDashboard({ ownerViewFlatId }: { ownerViewFlatId?: string } = {})
       electricity_bill: (v - prevReading) * rate,
       rent, maintenance, other_charges: other,
       opening_balance: openingBalance,
-      total_due: rent + (v - prevReading) * rate + maintenance + other - openingBalance,
+      total_due: roundBillAmount(rent + (v - prevReading) * rate + maintenance + other - openingBalance),
     };
     // Never reset amount_paid / payment_status: approved payments made before
     // the reading existed must stay deducted. Recompute re-derives them.
@@ -215,7 +217,7 @@ function TenantDashboard({ ownerViewFlatId }: { ownerViewFlatId?: string } = {})
   const ensureRow = async (): Promise<Reading | null> => {
     if (current) return current;
     if (!flat) return null;
-    const baseTotal = rent + maintenance + other - openingBalance;
+    const baseTotal = roundBillAmount(rent + maintenance + other - openingBalance);
     const payload = {
       flat_id: flat.id, month, year,
       prev_reading: prevReading, curr_reading: null,
@@ -286,7 +288,7 @@ function TenantDashboard({ ownerViewFlatId }: { ownerViewFlatId?: string } = {})
 
   const handlePay = () => {
     if (!current) return toast.error("Save reading first");
-    const payable = Number(current.total_due) - Number(current.amount_paid);
+    const payable = balanceDue(Number(current.total_due), Number(current.amount_paid));
     if (!payable || payable <= 0) return toast.error("Nothing to pay — amount is zero");
     openUpiAndConfirm(payable, `${monthLabel(month, year)} Rent`, "full");
   };
@@ -327,7 +329,7 @@ function TenantDashboard({ ownerViewFlatId }: { ownerViewFlatId?: string } = {})
 
   const payCash = async () => {
     if (!current) return toast.error("Save reading first");
-    const amount = Number(current.total_due) - Number(current.amount_paid);
+    const amount = balanceDue(Number(current.total_due), Number(current.amount_paid));
     if (!amount || amount <= 0) return toast.error("Nothing to pay — amount is zero");
     if (!confirm(`Mark ₹${amount.toFixed(0)} as cash paid? Owner must approve.`)) return;
     await submitPayment(amount, "cash", true);
@@ -455,7 +457,7 @@ function TenantDashboard({ ownerViewFlatId }: { ownerViewFlatId?: string } = {})
               <div className="text-4xl font-bold mt-1">
                 {formatINR(
                   current
-                    ? Number(current.total_due) - Number(current.amount_paid)
+                    ? balanceDue(Number(current.total_due), Number(current.amount_paid))
                     : totalDue
                 )}
               </div>
@@ -578,10 +580,17 @@ function TenantDashboard({ ownerViewFlatId }: { ownerViewFlatId?: string } = {})
                         : ""
                   }
                 />
+                {Math.abs(roundOff) > 0 && !current && (
+                  <Row
+                    label="राउंड ऑफ / Round off"
+                    value={`${roundOff < 0 ? "−" : "+"} ${formatINR(Math.abs(roundOff))}`}
+                    className={roundOff < 0 ? "text-success" : "text-destructive"}
+                  />
+                )}
                 <div className="border-t pt-2 mt-2 flex justify-between font-bold text-base">
                   <span>कुल / Total</span>
                   <span>
-                    {formatINR(current ? Number(current.total_due) : totalDue)}
+                    {formatINR(current ? roundBillAmount(Number(current.total_due)) : totalDue)}
                   </span>
                 </div>
                 {current && Number(current.amount_paid) > 0 && (
@@ -591,13 +600,11 @@ function TenantDashboard({ ownerViewFlatId }: { ownerViewFlatId?: string } = {})
                       value={`− ${formatINR(Number(current.amount_paid))}`}
                       className="text-success"
                     />
-                    {Number(current.amount_paid) < Number(current.total_due) && (
+                    {balanceDue(Number(current.total_due), Number(current.amount_paid)) > 0 && (
                       <div className="border-t pt-2 mt-2 flex justify-between font-bold text-base text-destructive">
                         <span>शेष देय / To Be Paid</span>
                         <span>
-                          {formatINR(
-                            Number(current.total_due) - Number(current.amount_paid)
-                          )}
+                          {formatINR(balanceDue(Number(current.total_due), Number(current.amount_paid)))}
                         </span>
                       </div>
                     )}
@@ -675,7 +682,7 @@ function TenantDashboard({ ownerViewFlatId }: { ownerViewFlatId?: string } = {})
                   <Smartphone className="h-5 w-5 mr-2" />
                   Pay Full{" "}
                   {formatINR(
-                    Number(current.total_due) - Number(current.amount_paid)
+                    balanceDue(Number(current.total_due), Number(current.amount_paid))
                   )}{" "}
                   via UPI
                 </Button>

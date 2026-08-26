@@ -20,6 +20,19 @@ export function formatINR(n: number) {
   }).format(n);
 }
 
+export function roundBillAmount(amount: number) {
+  if (!Number.isFinite(amount)) return 0;
+  const sign = amount < 0 ? -1 : 1;
+  const value = Math.abs(amount);
+  const base = Math.floor(value);
+  const fraction = value - base;
+  return sign * (fraction < 0.8 ? base : Math.ceil(value));
+}
+
+export function balanceDue(totalDue: number, amountPaid: number) {
+  return Math.max(0, roundBillAmount(totalDue) - Number(amountPaid || 0));
+}
+
 export function buildUpiLink(opts: {
   pa: string;
   pn: string;

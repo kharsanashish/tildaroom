@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Building2, LogOut, Loader2, Bell } from "lucide-react";
 import { toast } from "sonner";
-import { currentMonthYear, monthLabel, MONTH_NAMES, type PaymentStatus } from "@/lib/billing";
+import { balanceDue, currentMonthYear, monthLabel, MONTH_NAMES, roundBillAmount, type PaymentStatus } from "@/lib/billing";
 import { getRateFor } from "@/lib/rates";
 import { RatePrompt } from "@/components/rate-prompt";
 import { JanuaryReview } from "@/components/january-review";
@@ -127,7 +127,7 @@ function OwnerDashboard() {
       .sort((a, b) => b.year - a.year || b.month - a.month)[0];
     if (!prev) return 0;
     const approved = prev.payment_status === "paid" || prev.payment_status === "partial";
-    return (approved ? Number(prev.amount_paid) : 0) - Number(prev.total_due);
+    return (approved ? Number(prev.amount_paid) : 0) - roundBillAmount(Number(prev.total_due));
   };
 
   // Stats: Expected / Collected / Pending — skip vacant flats
@@ -137,16 +137,16 @@ function OwnerDashboard() {
       if (f.is_vacant) continue; // vacant flat contributes ₹0
       const r = currentReadings.find((x) => x.flat_id === f.id);
       if (r) {
-        expected += Number(r.total_due);
+        expected += roundBillAmount(Number(r.total_due));
         const approved = r.payment_status === "paid" || r.payment_status === "partial";
         if (approved) {
           collected += Number(r.amount_paid);
-          pending += Math.max(0, Number(r.total_due) - Number(r.amount_paid));
+          pending += balanceDue(Number(r.total_due), Number(r.amount_paid));
         } else {
-          pending += Number(r.total_due);
+          pending += roundBillAmount(Number(r.total_due));
         }
       } else {
-        const fallback = Number(f.rent) + Number(f.maintenance ?? 0) + Number(f.other_charges) - openingBalanceFor(f.id);
+        const fallback = roundBillAmount(Number(f.rent) + Number(f.maintenance ?? 0) + Number(f.other_charges) - openingBalanceFor(f.id));
         expected += fallback;
         pending += fallback;
       }
@@ -157,9 +157,9 @@ function OwnerDashboard() {
   // Flats with outstanding rent (no reading or partial/unpaid reading; skip vacant)
   const outstandingFor = (flat: Flat, reading?: Reading) => {
     if (reading) {
-      return Math.max(0, Number(reading.total_due) - Number(reading.amount_paid));
+      return balanceDue(Number(reading.total_due), Number(reading.amount_paid));
     }
-    return Math.max(0, Number(flat.rent) + Number(flat.maintenance ?? 0) + Number(flat.other_charges) - openingBalanceFor(flat.id));
+    return Math.max(0, roundBillAmount(Number(flat.rent) + Number(flat.maintenance ?? 0) + Number(flat.other_charges) - openingBalanceFor(flat.id)));
   };
 
   const pendingFlats = useMemo(
@@ -264,13 +264,13 @@ function OwnerDashboard() {
                       const reading = currentReadings.find((r) => r.flat_id === f.id);
                       // Match tenant Bill Breakdown "To Be Paid" (शेष देय) = total_due - amount_paid
                       const toBePaid = reading
-                        ? Math.max(0, Number(reading.total_due) - Number(reading.amount_paid))
+                        ? balanceDue(Number(reading.total_due), Number(reading.amount_paid))
                         : null;
                       const dueAmount = toBePaid !== null && toBePaid > 0
                         ? toBePaid
                         : reading
-                          ? Number(reading.total_due)
-                          : Number(f.rent) + Number(f.maintenance ?? 0) + Number(f.other_charges) - openingBalanceFor(f.id);
+                          ? roundBillAmount(Number(reading.total_due))
+                          : roundBillAmount(Number(f.rent) + Number(f.maintenance ?? 0) + Number(f.other_charges) - openingBalanceFor(f.id));
                       const electricityNote = reading
                         ? " (including electricity charges)"
                         : " (excluding electricity charges)";
