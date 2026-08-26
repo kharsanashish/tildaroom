@@ -1,5 +1,5 @@
 import jsPDF from "jspdf";
-import { monthLabel, statusLabel, type PaymentStatus } from "./billing";
+import { monthLabel, roundBillAmount, statusLabel, type PaymentStatus } from "./billing";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -167,7 +167,9 @@ export function exportReadingPdf(opts: {
   const maint     = Number(r.maintenance ?? 0);
   const other     = Number(r.other_charges);
   const ob        = Number(r.opening_balance);
-  const due       = Number(r.total_due);
+  const rawDue    = Number(r.rent) + Number(r.maintenance ?? 0) + Number(r.other_charges) + Number(r.electricity_bill) - Number(r.opening_balance);
+  const due       = roundBillAmount(Number(r.total_due || rawDue));
+  const roundOff  = due - rawDue;
   const paid      = Number(r.amount_paid);
   const balance   = Math.max(0, due - paid);
   const advance   = Math.max(0, paid - due);
@@ -243,6 +245,12 @@ export function exportReadingPdf(opts: {
       note(isOwed ? "Carried fwd, unpaid last month" : "Carried fwd, extra paid last month");
     }
 
+    if (Math.abs(roundOff) >= 0.005) {
+      const sign = roundOff < 0 ? "-" : "+";
+      row2("ROUND OFF", `Rs ${sign}${Math.abs(roundOff).toFixed(2)}`);
+      note(roundOff < 0 ? "Discount to round total" : "Adjustment to round total");
+    }
+
     dashes();
     row2("TOTAL", `Rs ${due.toFixed(2)}`, true);
     row2(`Paid (${method})`, `Rs ${paid.toFixed(2)}`, true);
@@ -309,14 +317,9 @@ export function exportPaymentReceiptPdf(opts: {
   const { reading: r, payment: p, installmentIndex, paidBefore,
           flatNumber, tenantName, tenantMobile, ownerName, ownerMobile } = opts;
 
-  const due       = Number(r.total_due);
-  // Rounding rule: fractional part > 0.5 rounds up, <= 0.5 rounds down.
-  // e.g. 102.51 -> 103, 102.50 -> 102. Difference shown as ROUND OFF discount.
-  const dueRounded = (() => {
-    const f = due - Math.floor(due);
-    return f > 0.5 ? Math.ceil(due) : Math.floor(due);
-  })();
-  const roundOff  = dueRounded - due; // typically negative (a discount)
+  const rawDue    = Number(r.rent) + Number(r.maintenance ?? 0) + Number(r.other_charges) + Number(r.electricity_bill) - Number(r.opening_balance);
+  const dueRounded = roundBillAmount(Number(r.total_due || rawDue));
+  const roundOff  = dueRounded - rawDue;
   const thisAmt   = Number(p.amount);
   const cumPaid   = paidBefore + (p.status === "approved" ? thisAmt : 0);
   const balance   = Math.max(0, dueRounded - cumPaid);

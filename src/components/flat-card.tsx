@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { MessageCircle, Zap, Home, Eye, IndianRupee } from "lucide-react";
-import { formatINR, monthLabel, statusColor, statusLabel, type PaymentStatus } from "@/lib/billing";
+import { balanceDue, formatINR, monthLabel, roundBillAmount, statusColor, statusLabel, type PaymentStatus } from "@/lib/billing";
 import { OwnerReadingDialog } from "@/components/owner-reading-dialog";
 import { OwnerPaymentDialog } from "@/components/owner-payment-dialog";
 import { FlatDialog } from "@/components/flat-dialog";
@@ -58,7 +58,7 @@ export function FlatCard({ flat, reading, allReadings, monthRate, month, year, o
   const stop = (e: React.MouseEvent | React.PointerEvent) => e.stopPropagation();
 
   const status: PaymentStatus = reading?.payment_status ?? "pending";
-  const fallbackDue = Number(flat.rent) + Number(flat.maintenance ?? 0) + Number(flat.other_charges);
+  const fallbackDue = roundBillAmount(Number(flat.rent) + Number(flat.maintenance ?? 0) + Number(flat.other_charges));
 
   // Opening balance: unpaid (or overpaid) amount carried from the tenant's
   // most recent prior reading — same logic as tenant.tsx / owner.tsx.
@@ -68,12 +68,12 @@ export function FlatCard({ flat, reading, allReadings, monthRate, month, year, o
       .sort((a, b) => b.year - a.year || b.month - a.month)[0];
     if (!prev) return 0;
     const approved = prev.payment_status === "paid" || prev.payment_status === "partial";
-    return (approved ? Number(prev.amount_paid) : 0) - Number(prev.total_due);
+    return (approved ? Number(prev.amount_paid) : 0) - roundBillAmount(Number(prev.total_due));
   })();
 
   const due = reading
-    ? Number(reading.total_due) - Number(reading.amount_paid)
-    : fallbackDue - openingBalance;
+    ? balanceDue(Number(reading.total_due), Number(reading.amount_paid))
+    : roundBillAmount(fallbackDue - openingBalance);
   const flatReadings = allReadings.filter((r) => r.flat_id === flat.id);
   const hasReading = reading?.curr_reading != null;
 
@@ -83,12 +83,12 @@ export function FlatCard({ flat, reading, allReadings, monthRate, month, year, o
   // month; if fully unpaid, use the full bill; if no reading yet, fall
   // back to base charges adjusted for opening balance carried forward.
   const toBePaid = reading
-    ? Math.max(0, Number(reading.total_due) - Number(reading.amount_paid))
+    ? balanceDue(Number(reading.total_due), Number(reading.amount_paid))
     : null;
   const dueAmount = toBePaid !== null && toBePaid > 0
     ? toBePaid
     : reading
-      ? Number(reading.total_due)
+      ? roundBillAmount(Number(reading.total_due))
       : fallbackDue - openingBalance;
   const monthName = MONTH_NAMES[month - 1];
   const electricityNote = reading
@@ -205,7 +205,7 @@ export function FlatCard({ flat, reading, allReadings, monthRate, month, year, o
               <>
                 <div className="text-xs text-muted-foreground">{status === "paid" ? "Paid" : "Due"}</div>
                 <div className="text-lg font-bold">
-                  {formatINR(reading ? Number(reading.total_due) : due)}
+                  {formatINR(reading ? roundBillAmount(Number(reading.total_due)) : due)}
                 </div>
                 {/* Only show balance due when NOT fully paid */}
                 {status !== "paid" && due > 0 && reading && (

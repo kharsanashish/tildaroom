@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Zap, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { currentMonthYear, formatINR, monthLabel, type PaymentStatus } from "@/lib/billing";
+import { currentMonthYear, formatINR, monthLabel, roundBillAmount, type PaymentStatus } from "@/lib/billing";
 
 interface Flat {
   id: string; flat_number: string; rent: number; maintenance: number; other_charges: number; prev_meter_reading: number;
@@ -57,7 +57,9 @@ export function OwnerReadingDialog({
   const rent = Number(flat.rent ?? 0);
   const maintenance = Number(flat.maintenance ?? 0);
   const other = Number(flat.other_charges ?? 0);
-  const totalDue = rent + electricity + maintenance + other - openingBalance;
+  const rawTotalDue = rent + electricity + maintenance + other - openingBalance;
+  const totalDue = roundBillAmount(rawTotalDue);
+  const roundOff = totalDue - rawTotalDue;
 
   // Tracks the row id for this month once known, so repeated auto-saves
   // update the same reading instead of creating duplicates.
@@ -158,6 +160,13 @@ export function OwnerReadingDialog({
               value={`${openingBalance > 0 ? "−" : openingBalance < 0 ? "+" : ""} ${formatINR(Math.abs(openingBalance))}`}
               className={openingBalance > 0 ? "text-success" : openingBalance < 0 ? "text-destructive" : ""}
             />
+            {Math.abs(roundOff) > 0 && (
+              <Row
+                label="Round off"
+                value={`${roundOff < 0 ? "−" : "+"} ${formatINR(Math.abs(roundOff))}`}
+                className={roundOff < 0 ? "text-success" : "text-destructive"}
+              />
+            )}
             <div className="border-t pt-2 mt-2 flex justify-between font-bold">
               <span>Total Due</span>
               <span>{formatINR(totalDue)}</span>

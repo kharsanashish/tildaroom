@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { IndianRupee, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { currentMonthYear, formatINR, monthLabel } from "@/lib/billing";
+import { balanceDue, currentMonthYear, formatINR, monthLabel, roundBillAmount } from "@/lib/billing";
 
 interface Flat {
   id: string;
@@ -53,8 +53,8 @@ export function OwnerPaymentDialog({
   const [saving, setSaving] = useState(false);
 
   const outstanding = reading
-    ? Math.max(0, Number(reading.total_due) - Number(reading.amount_paid))
-    : Number(flat.rent) + Number(flat.maintenance ?? 0) + Number(flat.other_charges);
+    ? balanceDue(Number(reading.total_due), Number(reading.amount_paid))
+    : roundBillAmount(Number(flat.rent) + Number(flat.maintenance ?? 0) + Number(flat.other_charges));
 
   // Create the month row if it doesn't exist yet, so payments recorded before
   // the meter reading is entered are still attached to this month.
@@ -67,7 +67,7 @@ export function OwnerPaymentDialog({
       ? Number(prev.curr_reading)
       : Number(flat.prev_meter_reading ?? 0);
     const openingBalance = prev
-      ? Number(prev.amount_paid) - Number(prev.total_due)
+      ? Number(prev.amount_paid) - roundBillAmount(Number(prev.total_due))
       : 0;
     const rent = Number(flat.rent ?? 0);
     const maintenance = Number(flat.maintenance ?? 0);
@@ -80,7 +80,7 @@ export function OwnerPaymentDialog({
         units: 0, rate_per_unit: 0, electricity_bill: 0,
         rent, maintenance, other_charges: other,
         opening_balance: openingBalance,
-        total_due: rent + maintenance + other - openingBalance,
+        total_due: roundBillAmount(rent + maintenance + other - openingBalance),
         amount_paid: 0,
         payment_status: "pending",
         source: "owner",

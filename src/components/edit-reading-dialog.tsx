@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { formatINR, type PaymentStatus } from "@/lib/billing";
+import { formatINR, roundBillAmount, type PaymentStatus } from "@/lib/billing";
 
 interface Reading {
   id: string;
@@ -40,7 +40,7 @@ export function EditReadingDialog({ reading, open, onOpenChange, onSaved }: {
     return {
       units: u,
       electricity: e,
-      totalDue: rent + maintenance + oc + e - openingBalance,
+      totalDue: roundBillAmount(rent + maintenance + oc + e - openingBalance),
     };
   }, [currReading, otherCharges, prevReading, ratePerUnit, rent, maintenance, openingBalance]);
 
