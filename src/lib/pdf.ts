@@ -411,7 +411,7 @@ export function exportPaymentReceiptPdf(opts: {
       note(isOwed ? "Carried fwd, unpaid last month" : "Carried fwd, extra paid last month");
     }
     dashes();
-    row2("TOTAL BILL", `Rs ${due.toFixed(2)}`, true);
+    row2("TOTAL BILL", `Rs ${rawDue.toFixed(2)}`, true);
     if (Math.abs(roundOff) >= 0.005) {
       const sign = roundOff < 0 ? "-" : "+";
       row2("ROUND OFF", `Rs ${sign}${Math.abs(roundOff).toFixed(2)}`);
