@@ -11,7 +11,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { formatINR, monthLabel, statusColor, statusLabel, type PaymentStatus } from "@/lib/billing";
 import { exportPaymentReceiptPdf, exportMonthlySummaryPdf } from "@/lib/pdf";
-import { EditReadingDialog } from "@/components/edit-reading-dialog";
 import type { PaymentInstallment } from "@/lib/payments";
 import { statusBadgeClass, statusBadgeLabel } from "@/lib/payments";
 
