@@ -204,9 +204,6 @@ export function HistoryView({
                       {Number(r.amount_paid).toFixed(0)} / {Number(r.total_due).toFixed(0)}
                     </div>
                     <div className="flex gap-1 mt-2 justify-end">
-                      <Button size="sm" variant="outline" className="h-7" onClick={() => setEditing(r)}>
-                        <Pencil className="h-3 w-3 mr-1" /> Edit
-                      </Button>
                       {inst.length > 0 && (
                         <Button size="sm" variant="outline" className="h-7" onClick={() => toggle(r.id)}>
                           {isOpen ? <ChevronUp className="h-3 w-3 mr-1" /> : <ChevronDown className="h-3 w-3 mr-1" />}
