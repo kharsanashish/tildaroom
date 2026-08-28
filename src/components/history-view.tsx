@@ -9,10 +9,10 @@ import {
 } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { formatINR, monthLabel, statusColor, statusLabel, type PaymentStatus } from "@/lib/billing";
+import { formatINR, monthLabel, roundBillAmount, statusColor, statusLabel, type PaymentStatus } from "@/lib/billing";
 import { exportPaymentReceiptPdf, exportMonthlySummaryPdf } from "@/lib/pdf";
 import type { PaymentInstallment } from "@/lib/payments";
-import { statusBadgeClass, statusBadgeLabel } from "@/lib/payments";
+import { approvedSum, statusBadgeClass, statusBadgeLabel } from "@/lib/payments";
 
 interface Flat {
   id: string;
@@ -94,12 +94,19 @@ export function HistoryView({
     const monthReadings = readings.filter((r) => r.month === month && r.year === year);
     const rows = monthReadings.map((r) => {
       const flat = flats.find((f) => f.id === r.flat_id);
+      const approvedPaid = approvedSum(paymentsByReading.get(r.id) ?? []);
+      const effectivePaid = Math.max(Number(r.amount_paid), approvedPaid);
+      const effectiveStatus: PaymentStatus = effectivePaid >= roundBillAmount(Number(r.total_due))
+        ? "paid"
+        : effectivePaid > 0
+          ? "partial"
+          : r.payment_status;
       return {
         flatNumber: flat?.flat_number ?? "?",
         tenantName: flat?.tenant_name ?? "—",
         totalDue: Number(r.total_due),
-        amountPaid: Number(r.amount_paid),
-        paymentStatus: r.payment_status,
+        amountPaid: effectivePaid,
+        paymentStatus: effectiveStatus,
       };
     });
     exportMonthlySummaryPdf({
@@ -183,6 +190,13 @@ export function HistoryView({
             const inst = (paymentsByReading.get(r.id) ?? [])
               .slice()
               .sort((a, b) => +new Date(a.submitted_at) - +new Date(b.submitted_at));
+            const approvedPaid = approvedSum(inst);
+            const effectivePaid = Math.max(Number(r.amount_paid), approvedPaid);
+            const effectiveStatus: PaymentStatus = effectivePaid >= roundBillAmount(Number(r.total_due))
+              ? "paid"
+              : effectivePaid > 0
+                ? "partial"
+                : r.payment_status;
             const isOpen = expanded.has(r.id);
             return (
               <Card key={r.id} className="p-4">
@@ -196,10 +210,10 @@ export function HistoryView({
                     </div>
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <Badge className={statusColor(r.payment_status)}>{statusLabel(r.payment_status)}</Badge>
+                    <Badge className={statusColor(effectiveStatus)}>{statusLabel(effectiveStatus)}</Badge>
                     <div className="text-sm font-semibold mt-1 flex items-center justify-end">
                       <IndianRupee className="h-3 w-3" />
-                      {Number(r.amount_paid).toFixed(0)} / {Number(r.total_due).toFixed(0)}
+                      {effectivePaid.toFixed(0)} / {Number(r.total_due).toFixed(0)}
                     </div>
                     <div className="flex gap-1 mt-2 justify-end">
                       {inst.length > 0 && (
