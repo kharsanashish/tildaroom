@@ -30,7 +30,7 @@ import { exportPaymentReceiptPdf } from "@/lib/pdf";
 import { subscribePush, sendPush } from "@/lib/push";
 import { DocumentVault } from "@/components/document-vault";
 import type { PaymentInstallment } from "@/lib/payments";
-import { statusBadgeClass, statusBadgeLabel } from "@/lib/payments";
+import { approvedSum, statusBadgeClass, statusBadgeLabel } from "@/lib/payments";
 
 
 export const Route = createFileRoute("/tenant")({
@@ -829,6 +829,13 @@ function HistoryList({
     <div className="space-y-2">
       {sorted.map((r) => {
         const inst = byReading.get(r.id) ?? [];
+        const approvedPaid = approvedSum(inst);
+        const effectivePaid = Math.max(Number(r.amount_paid), approvedPaid);
+        const effectiveStatus: PaymentStatus = effectivePaid >= roundBillAmount(Number(r.total_due))
+          ? "paid"
+          : effectivePaid > 0
+            ? "partial"
+            : r.payment_status;
         const isOpen = expanded.has(r.id);
         return (
           <Card key={r.id} className="p-4">
@@ -838,8 +845,8 @@ function HistoryList({
                 <div className="text-xs text-muted-foreground mt-0.5">
                   {Number(r.units).toFixed(0)} units • {formatINR(Number(r.total_due))}
                 </div>
-                <Badge className={`mt-1 ${statusColor(r.payment_status)}`}>
-                  {statusLabel(r.payment_status)}
+                <Badge className={`mt-1 ${statusColor(effectiveStatus)}`}>
+                  {statusLabel(effectiveStatus)} • {formatINR(effectivePaid)} / {formatINR(Number(r.total_due))}
                 </Badge>
               </div>
               {inst.length > 0 && (
