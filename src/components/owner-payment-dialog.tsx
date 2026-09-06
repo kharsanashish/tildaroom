@@ -52,23 +52,26 @@ export function OwnerPaymentDialog({
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
 
+  const previousReading = [...allReadings]
+    .filter((r) => r.flat_id === flat.id && !(r.month === month && r.year === year))
+    .sort((a, b) => b.year - a.year || b.month - a.month)[0];
+  const openingBalance = previousReading
+    ? Number(previousReading.amount_paid) - roundBillAmount(Number(previousReading.total_due))
+    : 0;
+
   const outstanding = reading
     ? balanceDue(Number(reading.total_due), Number(reading.amount_paid))
-    : roundBillAmount(Number(flat.rent) + Number(flat.maintenance ?? 0) + Number(flat.other_charges));
+    : roundBillAmount(
+        Number(flat.rent) + Number(flat.maintenance ?? 0) + Number(flat.other_charges) - openingBalance,
+      );
 
   // Create the month row if it doesn't exist yet, so payments recorded before
   // the meter reading is entered are still attached to this month.
   const ensureRow = async (): Promise<string | null> => {
     if (reading) return reading.id;
-    const prev = [...allReadings]
-      .filter((r) => r.flat_id === flat.id && !(r.month === month && r.year === year))
-      .sort((a, b) => b.year - a.year || b.month - a.month)[0];
-    const prevReading = prev?.curr_reading != null
-      ? Number(prev.curr_reading)
+    const prevReading = previousReading?.curr_reading != null
+      ? Number(previousReading.curr_reading)
       : Number(flat.prev_meter_reading ?? 0);
-    const openingBalance = prev
-      ? Number(prev.amount_paid) - roundBillAmount(Number(prev.total_due))
-      : 0;
     const rent = Number(flat.rent ?? 0);
     const maintenance = Number(flat.maintenance ?? 0);
     const other = Number(flat.other_charges ?? 0);
