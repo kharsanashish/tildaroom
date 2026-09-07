@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Building2, LogOut, Loader2, Bell } from "lucide-react";
 import { toast } from "sonner";
 import { balanceDue, currentMonthYear, monthLabel, MONTH_NAMES, roundBillAmount, type PaymentStatus } from "@/lib/billing";
+import { getWhatsAppLink } from "@/lib/utils";
 import { getRateFor } from "@/lib/rates";
 import { RatePrompt } from "@/components/rate-prompt";
 import { JanuaryReview } from "@/components/january-review";
