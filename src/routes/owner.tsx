@@ -299,7 +299,7 @@ function OwnerDashboard() {
                               return;
                             }
                             window.open(
-                              `https://wa.me/${mobile}?text=${encodeURIComponent(msg)}`,
+                              getWhatsAppLink(mobile, msg),
                               "_blank",
                               "noopener,noreferrer",
                             );
