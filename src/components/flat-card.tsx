@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { MessageCircle, Zap, Home, Eye, IndianRupee } from "lucide-react";
 import { balanceDue, formatINR, monthLabel, roundBillAmount, statusColor, statusLabel, type PaymentStatus } from "@/lib/billing";
-import { getWhatsAppLink } from "@/lib/utils";
 import { OwnerReadingDialog } from "@/components/owner-reading-dialog";
 import { OwnerPaymentDialog } from "@/components/owner-payment-dialog";
 import { FlatDialog } from "@/components/flat-dialog";
@@ -155,7 +154,7 @@ export function FlatCard({ flat, reading, allReadings, monthRate, month, year, o
           {waNumber && !isVacant && (
             <Button variant="ghost" size="icon" className="h-8 w-8 text-success" asChild
               title={reading ? "Send bill reminder" : "Remind to submit reading"}>
-              <a href={getWhatsAppLink(waNumber, waMessage)}
+              <a href={`https://wa.me/91${waNumber}?text=${encodeURIComponent(waMessage)}`}
                 target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
                 <MessageCircle className="h-4 w-4" />
               </a>
