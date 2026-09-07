@@ -155,7 +155,7 @@ export function FlatCard({ flat, reading, allReadings, monthRate, month, year, o
           {waNumber && !isVacant && (
             <Button variant="ghost" size="icon" className="h-8 w-8 text-success" asChild
               title={reading ? "Send bill reminder" : "Remind to submit reading"}>
-              <a href={`https://wa.me/91${waNumber}?text=${encodeURIComponent(waMessage)}`}
+              <a href={getWhatsAppLink(waNumber, waMessage)}
                 target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
                 <MessageCircle className="h-4 w-4" />
               </a>
