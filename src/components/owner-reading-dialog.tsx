@@ -7,6 +7,7 @@ import { Zap, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { currentMonthYear, formatINR, monthLabel, roundBillAmount, type PaymentStatus } from "@/lib/billing";
+import { createReadingPdfBlob, type ReadingPdf } from "@/lib/pdf";
 
 interface Flat {
   id: string; flat_number: string; rent: number; maintenance: number; other_charges: number; prev_meter_reading: number;
@@ -94,6 +95,26 @@ export function OwnerReadingDialog({
     if (!error && data?.id) {
       rowIdRef.current = data.id;
       await supabase.rpc("recompute_reading_payment", { p_reading_id: data.id });
+      const { data: savedReading } = await supabase
+        .from("meter_readings")
+        .select("*")
+        .eq("id", data.id)
+        .single();
+      const pdfBlob = createReadingPdfBlob({
+        reading: (savedReading ?? { ...base, amount_paid: 0, payment_status: "pending" }) as ReadingPdf,
+        flatNumber: flat.flat_number,
+        tenantName: "Tenant",
+      });
+      const path = `${flat.id}/${year}-${String(month).padStart(2, "0")}.pdf`;
+      const { error: uploadError } = await supabase.storage
+        .from("bill-pdfs")
+        .upload(path, pdfBlob, { contentType: "application/pdf", upsert: true });
+      if (!uploadError) {
+        const { data: urlData } = await supabase.storage.from("bill-pdfs").createSignedUrl(path, 60 * 60 * 24 * 7);
+        if (urlData?.signedUrl) {
+          await supabase.from("meter_readings").update({ bill_pdf_url: urlData.signedUrl }).eq("id", data.id);
+        }
+      }
     }
 
     setSaving(false);

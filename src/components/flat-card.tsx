@@ -33,6 +33,7 @@ interface Reading {
   maintenance: number; other_charges: number; opening_balance: number;
   total_due: number; amount_paid: number; payment_status: PaymentStatus;
   payment_method: string | null; payment_timestamp: string | null;
+  bill_pdf_url?: string | null;
   source?: string;
 }
 
@@ -97,7 +98,7 @@ export function FlatCard({ flat, reading, allReadings, monthRate, month, year, o
   const dueClause = flat.due_date
     ? ` your due date is ${String(flat.due_date).padStart(2, "0")}/${monthName}`
     : "";
-  const waMessage = `Mr. ${flat.tenant_name || "Tenant"} your rent is due for the ${monthName} month that is ₹${Math.round(dueAmount)}${electricityNote}${dueClause} please pay timely, Ignore if already paid. Thank You`;
+  const waMessage = `Mr. ${flat.tenant_name || "Tenant"} your rent is due for the ${monthName} month that is ₹${Math.round(dueAmount)}${electricityNote}${dueClause} please pay timely, Ignore if already paid. Thank You${reading?.bill_pdf_url ? ` Bill PDF: ${reading.bill_pdf_url}` : ""}`;
 
   const toggleVacant = async () => {
     setTogglingVacant(true);
