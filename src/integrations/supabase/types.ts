@@ -98,6 +98,7 @@ export type Database = {
       meter_readings: {
         Row: {
           amount_paid: number
+          bill_pdf_url: string | null
           created_at: string
           curr_reading: number | null
           electricity_bill: number
@@ -121,6 +122,7 @@ export type Database = {
         }
         Insert: {
           amount_paid?: number
+          bill_pdf_url?: string | null
           created_at?: string
           curr_reading?: number | null
           electricity_bill?: number
@@ -144,6 +146,7 @@ export type Database = {
         }
         Update: {
           amount_paid?: number
+          bill_pdf_url?: string | null
           created_at?: string
           curr_reading?: number | null
           electricity_bill?: number
