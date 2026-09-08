@@ -150,7 +150,7 @@ function buildThermalPdf(M: number, draw: (h: ThermalHelpers) => void): jsPDF {
   return doc;
 }
 
-export function createReadingPdfBlob(opts: {
+export function createReadingPdf(opts: {
   reading: ReadingPdf;
   flatNumber: string;
   tenantName: string;
@@ -295,7 +295,7 @@ export function exportReadingPdf(opts: {
   ownerName?: string;
   ownerMobile?: string;
 }) {
-  const doc = createReadingPdfDocument(opts);
+  const doc = createReadingPdf(opts);
   const flatPart = `Flat${opts.flatNumber.replace(/\s+/g, "")}`;
   const periodPart = monthLabel(opts.reading.month, opts.reading.year).replace(" ", "_");
   doc.save(`Receipt_${flatPart}_${periodPart}.pdf`);

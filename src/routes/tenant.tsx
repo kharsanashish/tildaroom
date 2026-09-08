@@ -26,7 +26,7 @@ import {
   statusColor, statusLabel, type PaymentStatus,
 } from "@/lib/billing";
 import { getRateFor, hasRateFor } from "@/lib/rates";
-import { exportPaymentReceiptPdf } from "@/lib/pdf";
+import { createReadingPdf, exportPaymentReceiptPdf } from "@/lib/pdf";
 import { subscribePush, sendPush } from "@/lib/push";
 import { DocumentVault } from "@/components/document-vault";
 import type { PaymentInstallment } from "@/lib/payments";
@@ -207,6 +207,24 @@ function TenantDashboard({ ownerViewFlatId }: { ownerViewFlatId?: string } = {})
       : await supabase.from("meter_readings").insert({ ...base, amount_paid: 0, payment_status: "pending" }).select("id").single();
     if (!error && data?.id) {
       await supabase.rpc("recompute_reading_payment", { p_reading_id: data.id });
+      const { data: savedReading } = await supabase
+        .from("meter_readings")
+        .select("*")
+        .eq("id", data.id)
+        .single();
+      const pdfBlob = createReadingPdf({
+        reading: savedReading ?? { ...base, amount_paid: 0, payment_status: "pending" },
+        flatNumber: flat.flat_number,
+        tenantName: flat.tenant_name,
+      });
+      const path = `${flat.id}/${year}-${String(month).padStart(2, "0")}.pdf`;
+      const { error: uploadError } = await supabase.storage
+        .from("bill-pdfs")
+        .upload(path, pdfBlob, { contentType: "application/pdf", upsert: true });
+      if (!uploadError) {
+        const { data: urlData } = supabase.storage.from("bill-pdfs").getPublicUrl(path);
+        await supabase.from("meter_readings").update({ bill_pdf_url: urlData.publicUrl }).eq("id", data.id);
+      }
     }
     setSaving(false);
     if (error) toast.error(error.message);
