@@ -284,7 +284,18 @@ export function createReadingPdf(opts: {
     center("E & O.E");
   });
 
-  return doc.output("blob");
+  return doc;
+}
+
+export function createReadingPdfBlob(opts: {
+  reading: ReadingPdf;
+  flatNumber: string;
+  tenantName: string;
+  tenantMobile?: string;
+  ownerName?: string;
+  ownerMobile?: string;
+}) {
+  return createReadingPdf(opts).output("blob");
 }
 
 export function exportReadingPdf(opts: {

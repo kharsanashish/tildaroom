@@ -26,7 +26,7 @@ import {
   statusColor, statusLabel, type PaymentStatus,
 } from "@/lib/billing";
 import { getRateFor, hasRateFor } from "@/lib/rates";
-import { createReadingPdf, exportPaymentReceiptPdf } from "@/lib/pdf";
+import { createReadingPdfBlob, exportPaymentReceiptPdf, type ReadingPdf } from "@/lib/pdf";
 import { subscribePush, sendPush } from "@/lib/push";
 import { DocumentVault } from "@/components/document-vault";
 import type { PaymentInstallment } from "@/lib/payments";
@@ -212,8 +212,8 @@ function TenantDashboard({ ownerViewFlatId }: { ownerViewFlatId?: string } = {})
         .select("*")
         .eq("id", data.id)
         .single();
-      const pdfBlob = createReadingPdf({
-        reading: savedReading ?? { ...base, amount_paid: 0, payment_status: "pending" },
+      const pdfBlob = createReadingPdfBlob({
+        reading: (savedReading ?? { ...base, amount_paid: 0, payment_status: "pending" }) as ReadingPdf,
         flatNumber: flat.flat_number,
         tenantName: flat.tenant_name,
       });
@@ -222,8 +222,10 @@ function TenantDashboard({ ownerViewFlatId }: { ownerViewFlatId?: string } = {})
         .from("bill-pdfs")
         .upload(path, pdfBlob, { contentType: "application/pdf", upsert: true });
       if (!uploadError) {
-        const { data: urlData } = supabase.storage.from("bill-pdfs").getPublicUrl(path);
-        await supabase.from("meter_readings").update({ bill_pdf_url: urlData.publicUrl }).eq("id", data.id);
+        const { data: urlData } = await supabase.storage.from("bill-pdfs").createSignedUrl(path, 60 * 60 * 24 * 7);
+        if (urlData?.signedUrl) {
+          await supabase.from("meter_readings").update({ bill_pdf_url: urlData.signedUrl }).eq("id", data.id);
+        }
       }
     }
     setSaving(false);
