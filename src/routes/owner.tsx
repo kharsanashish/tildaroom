@@ -15,6 +15,7 @@ import { RatePrompt } from "@/components/rate-prompt";
 import { JanuaryReview } from "@/components/january-review";
 import { RatesManager } from "@/components/rates-manager";
 import { subscribePush } from "@/lib/push";
+import { createReadingPdfBlob, type ReadingPdf } from "@/lib/pdf";
 
 // Extracted components
 import { StatCard } from "@/components/stat-card";
@@ -128,6 +129,56 @@ function OwnerDashboard() {
     if (!prev) return 0;
     const approved = prev.payment_status === "paid" || prev.payment_status === "partial";
     return (approved ? Number(prev.amount_paid) : 0) - roundBillAmount(Number(prev.total_due));
+  };
+
+  const openReminderWhatsApp = async (flat: Flat, reading: Reading | undefined, mobile: string, message: string) => {
+    const popup = window.open("about:blank", "_blank");
+    if (!popup) {
+      toast.error("Please allow pop-ups to open WhatsApp");
+      return;
+    }
+
+    let outgoingMessage = message;
+    if (reading?.curr_reading != null) {
+      const path = `${flat.id}/${reading.year}-${String(reading.month).padStart(2, "0")}.pdf`;
+      try {
+        let { data: signedData } = await supabase.storage
+          .from("bill-pdfs")
+          .createSignedUrl(path, 60 * 60 * 24 * 7);
+
+        if (!signedData?.signedUrl) {
+          const pdf = createReadingPdfBlob({
+            reading: reading as ReadingPdf,
+            flatNumber: flat.flat_number,
+            tenantName: flat.tenant_name || "Tenant",
+            tenantMobile: flat.tenant_mobile,
+            ownerName: settings?.owner_name,
+            ownerMobile: settings?.owner_mobile,
+          });
+          const { error: uploadError } = await supabase.storage
+            .from("bill-pdfs")
+            .upload(path, pdf, { contentType: "application/pdf", upsert: true });
+          if (uploadError) throw uploadError;
+
+          ({ data: signedData } = await supabase.storage
+            .from("bill-pdfs")
+            .createSignedUrl(path, 60 * 60 * 24 * 7));
+        }
+
+        if (!signedData?.signedUrl) throw new Error("Could not create bill link");
+        outgoingMessage += `\n\nBill PDF: ${signedData.signedUrl}`;
+        await supabase
+          .from("meter_readings")
+          .update({ bill_pdf_url: signedData.signedUrl })
+          .eq("id", reading.id);
+      } catch {
+        popup.close();
+        toast.error("Bill PDF could not be attached. Please try again.");
+        return;
+      }
+    }
+
+    popup.location.href = `https://wa.me/${mobile}?text=${encodeURIComponent(outgoingMessage)}`;
   };
 
   // Stats: Expected / Collected / Pending — skip vacant flats
@@ -297,11 +348,7 @@ function OwnerDashboard() {
                               toast.error("No mobile number on file");
                               return;
                             }
-                            window.open(
-                              `https://wa.me/${mobile}?text=${encodeURIComponent(msg)}`,
-                              "_blank",
-                              "noopener,noreferrer",
-                            );
+                            void openReminderWhatsApp(f, reading, mobile, msg);
                           }}
                           title="Send WhatsApp reminder"
                         >
