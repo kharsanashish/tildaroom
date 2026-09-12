@@ -10,6 +10,7 @@ import { OwnerPaymentDialog } from "@/components/owner-payment-dialog";
 import { FlatDialog } from "@/components/flat-dialog";
 
 import { supabase } from "@/integrations/supabase/client";
+import { createReadingPdfBlob, type ReadingPdf } from "@/lib/pdf";
 import { toast } from "sonner";
 
 interface Flat {
@@ -108,7 +109,30 @@ export function FlatCard({ flat, reading, allReadings, monthRate, month, year, o
     let message = waMessage;
     if (reading) {
       const path = `${flat.id}/${year}-${String(month).padStart(2, "0")}.pdf`;
-      const { data } = await supabase.storage.from("bill-pdfs").createSignedUrl(path, 60 * 60 * 24 * 7);
+      let { data } = await supabase.storage.from("bill-pdfs").createSignedUrl(path, 60 * 60 * 24 * 7);
+      if (!data?.signedUrl) {
+        // Bill PDF missing from storage (e.g. reading saved before bills were
+        // auto-generated) — generate and upload it now, then link it.
+        try {
+          const blob = createReadingPdfBlob({
+            reading: reading as ReadingPdf,
+            flatNumber: flat.flat_number,
+            tenantName: flat.tenant_name || "Tenant",
+            tenantMobile: flat.tenant_mobile,
+          });
+          const { error: uploadError } = await supabase.storage
+            .from("bill-pdfs")
+            .upload(path, blob, { contentType: "application/pdf", upsert: true });
+          if (!uploadError) {
+            ({ data } = await supabase.storage.from("bill-pdfs").createSignedUrl(path, 60 * 60 * 24 * 7));
+            if (data?.signedUrl) {
+              await supabase.from("meter_readings").update({ bill_pdf_url: data.signedUrl }).eq("id", reading.id);
+            }
+          }
+        } catch {
+          // fall through — message still sends without the link
+        }
+      }
       if (data?.signedUrl) message += ` Bill PDF: ${data.signedUrl}`;
     }
 
