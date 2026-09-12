@@ -10,7 +10,8 @@ import { currentMonthYear, formatINR, monthLabel, roundBillAmount, type PaymentS
 import { createReadingPdfBlob, type ReadingPdf } from "@/lib/pdf";
 
 interface Flat {
-  id: string; flat_number: string; rent: number; maintenance: number; other_charges: number; prev_meter_reading: number;
+  id: string; flat_number: string; tenant_name?: string; tenant_mobile?: string;
+  rent: number; maintenance: number; other_charges: number; prev_meter_reading: number;
 }
 interface Reading {
   id: string; flat_id: string; month: number; year: number;
@@ -103,7 +104,8 @@ export function OwnerReadingDialog({
       const pdfBlob = createReadingPdfBlob({
         reading: (savedReading ?? { ...base, amount_paid: 0, payment_status: "pending" }) as ReadingPdf,
         flatNumber: flat.flat_number,
-        tenantName: "Tenant",
+        tenantName: flat.tenant_name || "Tenant",
+        tenantMobile: flat.tenant_mobile,
       });
       const path = `${flat.id}/${year}-${String(month).padStart(2, "0")}.pdf`;
       const { error: uploadError } = await supabase.storage

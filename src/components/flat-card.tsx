@@ -98,7 +98,22 @@ export function FlatCard({ flat, reading, allReadings, monthRate, month, year, o
   const dueClause = flat.due_date
     ? ` your due date is ${String(flat.due_date).padStart(2, "0")}/${monthName}`
     : "";
-  const waMessage = `Mr. ${flat.tenant_name || "Tenant"} your rent is due for the ${monthName} month that is ₹${Math.round(dueAmount)}${electricityNote}${dueClause} please pay timely, Ignore if already paid. Thank You${reading?.bill_pdf_url ? ` Bill PDF: ${reading.bill_pdf_url}` : ""}`;
+  const waMessage = `Mr. ${flat.tenant_name || "Tenant"} your rent is due for the ${monthName} month that is ₹${Math.round(dueAmount)}${electricityNote}${dueClause} please pay timely, Ignore if already paid. Thank You`;
+
+  const sendWhatsApp = async (e: React.MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault();
+    const popup = window.open("about:blank", "_blank");
+    if (!popup) return;
+
+    let message = waMessage;
+    if (reading) {
+      const path = `${flat.id}/${year}-${String(month).padStart(2, "0")}.pdf`;
+      const { data } = await supabase.storage.from("bill-pdfs").createSignedUrl(path, 60 * 60 * 24 * 7);
+      if (data?.signedUrl) message += ` Bill PDF: ${data.signedUrl}`;
+    }
+
+    popup.location.href = `https://wa.me/91${waNumber}?text=${encodeURIComponent(message)}`;
+  };
 
   const toggleVacant = async () => {
     setTogglingVacant(true);
@@ -155,8 +170,8 @@ export function FlatCard({ flat, reading, allReadings, monthRate, month, year, o
           {waNumber && !isVacant && (
             <Button variant="ghost" size="icon" className="h-8 w-8 text-success" asChild
               title={reading ? "Send bill reminder" : "Remind to submit reading"}>
-              <a href={`https://wa.me/91${waNumber}?text=${encodeURIComponent(waMessage)}`}
-                target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
+              <a href={`https://wa.me/91${waNumber}`} target="_blank" rel="noopener noreferrer"
+                onClick={(e) => { e.stopPropagation(); void sendWhatsApp(e); }}>
                 <MessageCircle className="h-4 w-4" />
               </a>
             </Button>
