@@ -194,6 +194,7 @@ export function createReadingPdf(opts: {
     blank();
     printLine(clip(tenantName || "-", COLS), true);
     printLine(`Flat: ${flatNumber}`);
+    printLine(`Meter No: ${flatNumber}`);
     if (tenantMobile) {
       const mob = tenantMobile.replace(/\D/g, "");
       printLine(`Mobile: ${mob.length === 10 ? mob.replace(/(\d{5})(\d{5})/, "$1 $2") : mob}`);
