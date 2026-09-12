@@ -10,6 +10,7 @@ import { OwnerPaymentDialog } from "@/components/owner-payment-dialog";
 import { FlatDialog } from "@/components/flat-dialog";
 
 import { supabase } from "@/integrations/supabase/client";
+import { createReadingPdfBlob, type ReadingPdf } from "@/lib/pdf";
 import { toast } from "sonner";
 
 interface Flat {
