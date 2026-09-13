@@ -166,7 +166,7 @@ function OwnerDashboard() {
         }
 
         if (!signedData?.signedUrl) throw new Error("Could not create bill link");
-        outgoingMessage += `\n\nBill PDF: ${signedData.signedUrl}`;
+        outgoingMessage += `\n\nView Bill: ${window.location.origin}/bill/${reading.id}`;
         await supabase
           .from("meter_readings")
           .update({ bill_pdf_url: signedData.signedUrl })
