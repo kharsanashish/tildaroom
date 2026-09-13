@@ -133,7 +133,9 @@ export function FlatCard({ flat, reading, allReadings, monthRate, month, year, o
           // fall through — message still sends without the link
         }
       }
-      if (data?.signedUrl) message += ` Bill PDF: ${data.signedUrl}`;
+      if (data?.signedUrl) {
+        message += ` View Bill: ${window.location.origin}/bill/${reading.id}`;
+      }
     }
 
     popup.location.href = `https://wa.me/91${waNumber}?text=${encodeURIComponent(message)}`;
