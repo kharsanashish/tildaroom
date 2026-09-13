@@ -14,6 +14,7 @@ import { Route as SetupRouteImport } from './routes/setup'
 import { Route as OwnerRouteImport } from './routes/owner'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as BillBillIdRouteImport } from './routes/bill.$billId'
 
 const TenantRoute = TenantRouteImport.update({
   id: '/tenant',
@@ -40,6 +41,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BillBillIdRoute = BillBillIdRouteImport.update({
+  id: '/bill/$billId',
+  path: '/bill/$billId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -47,6 +53,7 @@ export interface FileRoutesByFullPath {
   '/owner': typeof OwnerRoute
   '/setup': typeof SetupRoute
   '/tenant': typeof TenantRoute
+  '/bill/$billId': typeof BillBillIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -54,6 +61,7 @@ export interface FileRoutesByTo {
   '/owner': typeof OwnerRoute
   '/setup': typeof SetupRoute
   '/tenant': typeof TenantRoute
+  '/bill/$billId': typeof BillBillIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -62,13 +70,21 @@ export interface FileRoutesById {
   '/owner': typeof OwnerRoute
   '/setup': typeof SetupRoute
   '/tenant': typeof TenantRoute
+  '/bill/$billId': typeof BillBillIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/owner' | '/setup' | '/tenant'
+  fullPaths: '/' | '/login' | '/owner' | '/setup' | '/tenant' | '/bill/$billId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login' | '/owner' | '/setup' | '/tenant'
-  id: '__root__' | '/' | '/login' | '/owner' | '/setup' | '/tenant'
+  to: '/' | '/login' | '/owner' | '/setup' | '/tenant' | '/bill/$billId'
+  id:
+    | '__root__'
+    | '/'
+    | '/login'
+    | '/owner'
+    | '/setup'
+    | '/tenant'
+    | '/bill/$billId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -77,6 +93,7 @@ export interface RootRouteChildren {
   OwnerRoute: typeof OwnerRoute
   SetupRoute: typeof SetupRoute
   TenantRoute: typeof TenantRoute
+  BillBillIdRoute: typeof BillBillIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -116,6 +133,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/bill/$billId': {
+      id: '/bill/$billId'
+      path: '/bill/$billId'
+      fullPath: '/bill/$billId'
+      preLoaderRoute: typeof BillBillIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -125,6 +149,7 @@ const rootRouteChildren: RootRouteChildren = {
   OwnerRoute: OwnerRoute,
   SetupRoute: SetupRoute,
   TenantRoute: TenantRoute,
+  BillBillIdRoute: BillBillIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
