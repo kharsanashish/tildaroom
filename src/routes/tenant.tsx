@@ -172,7 +172,7 @@ function TenantDashboard({ ownerViewFlatId }: { ownerViewFlatId?: string } = {})
     return prev ? Number(prev.curr_reading) : Number(flat?.prev_meter_reading ?? 0);
   }, [current, readings, month, year, flat]);
 
-  const rate = monthRate;
+  const rate = monthRate || Number(current?.rate_per_unit ?? 0);
   const currNum = current ? Number(current.curr_reading ?? 0) : Number(currInput || 0);
   const units = Math.max(0, currNum - prevReading);
   const electricity = units * rate;
