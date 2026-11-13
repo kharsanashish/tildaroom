@@ -51,6 +51,7 @@ export function RatesManager({ onChange }: { onChange?: () => void }) {
 
   const saveRow = async (i: number) => {
     const r = rows[i];
+    if (!r.rate_per_unit || r.rate_per_unit <= 0) return toast.error("Enter a unit price greater than 0");
     const key = `${r.year}-${r.month}`;
     setSavingKey(key);
     const { error } = await supabase.from("electricity_rates").upsert(
