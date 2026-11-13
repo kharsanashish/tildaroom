@@ -142,29 +142,44 @@ function OwnerDashboard() {
     if (reading?.curr_reading != null) {
       const path = `${flat.id}/${reading.year}-${String(reading.month).padStart(2, "0")}.pdf`;
       try {
-        let { data: signedData } = await supabase.storage
-          .from("bill-pdfs")
-          .createSignedUrl(path, 60 * 60 * 24 * 7);
-
-        if (!signedData?.signedUrl) {
-          const pdf = createReadingPdfBlob({
-            reading: reading as ReadingPdf,
-            flatNumber: flat.flat_number,
-            tenantName: flat.tenant_name || "Tenant",
-            tenantMobile: flat.tenant_mobile,
-            ownerName: settings?.owner_name,
-            ownerMobile: settings?.owner_mobile,
-          });
-          const { error: uploadError } = await supabase.storage
-            .from("bill-pdfs")
-            .upload(path, pdf, { contentType: "application/pdf", upsert: true });
-          if (uploadError) throw uploadError;
-
-          ({ data: signedData } = await supabase.storage
-            .from("bill-pdfs")
-            .createSignedUrl(path, 60 * 60 * 24 * 7));
+        // Re-price a stale reading (saved while the unit price was 0) from this
+        // month's rate, then always rebuild the PDF instead of reusing the old one.
+        let current: Reading = reading;
+        if (monthRate > 0 && Number(reading.rate_per_unit) !== monthRate) {
+          const units = Math.max(0, Number(reading.curr_reading) - Number(reading.prev_reading));
+          const elec = units * monthRate;
+          const total = roundBillAmount(
+            Number(reading.rent) + Number(reading.maintenance ?? 0) + Number(reading.other_charges) + elec - Number(reading.opening_balance),
+          );
+          const { error: fixError } = await supabase.from("meter_readings")
+            .update({ units, rate_per_unit: monthRate, electricity_bill: elec, total_due: total })
+            .eq("id", reading.id);
+          if (!fixError) {
+            await supabase.rpc("recompute_reading_payment", { p_reading_id: reading.id });
+            current = { ...reading, units, rate_per_unit: monthRate, electricity_bill: elec, total_due: total };
+            const remaining = balanceDue(total, Number(reading.amount_paid));
+            const amt = remaining > 0 ? remaining : total;
+            outgoingMessage = outgoingMessage.replace(/that is ₹\d+/, `that is ₹${Math.round(amt)}`);
+            void refresh();
+          }
         }
 
+        const pdf = createReadingPdfBlob({
+          reading: current as ReadingPdf,
+          flatNumber: flat.flat_number,
+          tenantName: flat.tenant_name || "Tenant",
+          tenantMobile: flat.tenant_mobile,
+          ownerName: settings?.owner_name,
+          ownerMobile: settings?.owner_mobile,
+        });
+        const { error: uploadError } = await supabase.storage
+          .from("bill-pdfs")
+          .upload(path, pdf, { contentType: "application/pdf", upsert: true });
+        if (uploadError) throw uploadError;
+
+        const { data: signedData } = await supabase.storage
+          .from("bill-pdfs")
+          .createSignedUrl(path, 60 * 60 * 24 * 7);
         if (!signedData?.signedUrl) throw new Error("Could not create bill link");
         outgoingMessage += `\n\nView Bill: ${window.location.origin}/bill/${reading.id}`;
         await supabase
