@@ -161,8 +161,8 @@ export function createReadingPdf(opts: {
   const { reading: r, flatNumber, tenantName, tenantMobile, ownerName, ownerMobile } = opts;
 
   const units     = Number(r.units);
-  const rate      = Number(r.rate_per_unit);
   const elec      = Number(r.electricity_bill);
+  const rate      = Number(r.rate_per_unit) || (units > 0 ? elec / units : 0);
   const rent      = Number(r.rent);
   const maint     = Number(r.maintenance ?? 0);
   const other     = Number(r.other_charges);
@@ -392,8 +392,8 @@ export function exportPaymentReceiptPdf(opts: {
     dashes();
 
     const units = Number(r.units);
-    const rate  = Number(r.rate_per_unit);
     const elec  = Number(r.electricity_bill);
+    const rate  = Number(r.rate_per_unit) || (units > 0 ? elec / units : 0);
     const rent  = Number(r.rent);
     const maint = Number(r.maintenance ?? 0);
     const other = Number(r.other_charges);

@@ -16,6 +16,7 @@ export async function hasRateFor(month: number, year: number): Promise<boolean> 
     .select("id")
     .eq("month", month)
     .eq("year", year)
+    .gt("rate_per_unit", 0)
     .maybeSingle();
   return !!data;
 }
