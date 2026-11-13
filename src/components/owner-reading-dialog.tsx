@@ -74,17 +74,26 @@ export function OwnerReadingDialog({
       return;
     }
     setSaving(true);
+    const { data: savedRate } = await supabase
+      .from("electricity_rates")
+      .select("rate_per_unit")
+      .eq("month", month)
+      .eq("year", year)
+      .maybeSingle();
+    const effectiveRate = Number(savedRate?.rate_per_unit ?? monthRate);
+    const savedElectricity = units * effectiveRate;
+    const savedTotalDue = roundBillAmount(rent + savedElectricity + maintenance + Number(flat.other_charges ?? 0) - openingBalance);
     const base = {
       flat_id: flat.id,
       month, year,
       prev_reading: prevReading,
       curr_reading: v,
       units,
-      rate_per_unit: monthRate,
-      electricity_bill: electricity,
+      rate_per_unit: effectiveRate,
+      electricity_bill: savedElectricity,
       rent, maintenance, other_charges: other,
       opening_balance: openingBalance,
-      total_due: totalDue,
+      total_due: savedTotalDue,
     };
     // IMPORTANT: never reset amount_paid / payment_status here — approved
     // payments (including ones made before the reading existed) must stay
