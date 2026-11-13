@@ -419,6 +419,10 @@ export type Database = {
       }
     }
     Functions: {
+      apply_rate_to_readings: {
+        Args: { p_month: number; p_only_zero?: boolean; p_year: number }
+        Returns: undefined
+      }
       get_tenant_password: {
         Args: { _key: string; _tenant_id: string }
         Returns: string
